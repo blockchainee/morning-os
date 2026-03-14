@@ -495,9 +495,6 @@ async function writeToNotion(briefing) {
         Date: {
           date: { start: todayISODate() },
         },
-        Status: {
-          select: { name: 'Generated' },
-        },
       },
       children: buildNotionBlocks(briefing).slice(0, 100), // Notion API limit: 100 blocks per request
     }),
