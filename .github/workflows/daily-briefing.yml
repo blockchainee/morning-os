@@ -28,7 +28,7 @@ jobs:
           node-version: '20'
 
       - name: Install Node dependencies
-        run: npm ci
+        run: npm install --no-package-lock
 
       - name: Install yt-dlp for podcast transcripts
         run: |
