@@ -24,17 +24,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Install Node dependencies
-        run: npm install
-
       - name: Install yt-dlp for podcast transcripts
         run: |
           sudo wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp
           sudo chmod +x /usr/local/bin/yt-dlp
           yt-dlp --version
-
-      - name: Install Python dependencies for transcript processing
-        run: pip install --quiet webvtt-py 2>/dev/null || true
 
       - name: Fetch podcast transcripts
         run: node scripts/fetch-transcripts.js
@@ -59,3 +53,4 @@ jobs:
           name: morning-os-logs-${{ github.run_id }}
           path: logs/
           retention-days: 7
+          if-no-files-found: ignore
