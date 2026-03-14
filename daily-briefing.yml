@@ -1,11 +1,8 @@
 name: Morning OS — Daily Briefing
 
 on:
-  # Runs at 01:30 UTC = 05:30 Dubai time (UTC+4) every day
   schedule:
     - cron: '30 1 * * *'
-
-  # Also allows manual trigger from GitHub UI (for testing)
   workflow_dispatch:
     inputs:
       debug:
@@ -26,7 +23,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install Node dependencies
         run: npm install
@@ -38,14 +34,13 @@ jobs:
           yt-dlp --version
 
       - name: Install Python dependencies for transcript processing
-        run: |
-          pip install --quiet webvtt-py 2>/dev/null || true
+        run: pip install --quiet webvtt-py 2>/dev/null || true
 
       - name: Fetch podcast transcripts
         run: node scripts/fetch-transcripts.js
         env:
           ACTIVE_PODCASTS: ${{ vars.ACTIVE_PODCASTS }}
-        continue-on-error: true  # Don't fail briefing if podcasts fail
+        continue-on-error: true
 
       - name: Generate Morning OS briefing
         run: node scripts/generate.js
@@ -57,7 +52,7 @@ jobs:
           ACTIVE_PODCASTS: ${{ vars.ACTIVE_PODCASTS }}
           DEBUG: ${{ inputs.debug || 'false' }}
 
-      - name: Upload logs as artifact (for debugging)
+      - name: Upload logs as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
