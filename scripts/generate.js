@@ -39,30 +39,35 @@ if (!GOOGLE_ENABLED)       { log('WARN: Google OAuth not configured — calendar
 
 // ── Google OAuth Token Refresh ────────────────────────────────
 let googleAccessToken = null;
+let tokenRefreshPromise = null;
 
 async function getGoogleAccessToken() {
   if (!GOOGLE_ENABLED) throw new Error('Google OAuth not configured');
   if (googleAccessToken) return googleAccessToken;
-  log('Refreshing Google access token...');
-  const resp = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id:     GOOGLE_CLIENT_ID     || '',
-      client_secret: GOOGLE_CLIENT_SECRET || '',
-      refresh_token: GOOGLE_REFRESH_TOKEN,
-      grant_type:    'refresh_token',
-    }),
-  });
-  const data = await resp.json();
-  if (!data.access_token) {
-    // Try without client_id/secret (works for some token types)
-    log('Standard refresh failed, trying alternative...');
-    throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
-  }
-  googleAccessToken = data.access_token;
-  log('Google access token obtained');
-  return googleAccessToken;
+  // Prevent parallel calls from each triggering a separate refresh
+  if (tokenRefreshPromise) return tokenRefreshPromise;
+  tokenRefreshPromise = (async () => {
+    log('Refreshing Google access token...');
+    const resp = await fetch('https://oauth2.googleapis.com/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id:     GOOGLE_CLIENT_ID     || '',
+        client_secret: GOOGLE_CLIENT_SECRET || '',
+        refresh_token: GOOGLE_REFRESH_TOKEN,
+        grant_type:    'refresh_token',
+      }),
+    });
+    const data = await resp.json();
+    if (!data.access_token) {
+      throw new Error(`Token refresh failed: ${JSON.stringify(data)}`);
+    }
+    googleAccessToken = data.access_token;
+    log('Google access token obtained');
+    return googleAccessToken;
+  })();
+  try { return await tokenRefreshPromise; }
+  finally { tokenRefreshPromise = null; }
 }
 
 // ── Gmail API ─────────────────────────────────────────────────
