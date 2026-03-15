@@ -1,44 +1,28 @@
 name: Morning OS — Daily Briefing
-
 on:
   schedule:
     - cron: '30 1 * * *'
   workflow_dispatch:
-    inputs:
-      debug:
-        description: 'Enable debug logging'
-        required: false
-        default: 'false'
-
 jobs:
   generate-briefing:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
-      - name: Install yt-dlp for podcast transcripts
+      - name: Install yt-dlp
         run: |
           sudo wget -q https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -O /usr/local/bin/yt-dlp
           sudo chmod +x /usr/local/bin/yt-dlp
-          yt-dlp --version
-
-      - name: Fetch podcast transcripts
+      - name: Fetch transcripts
         run: node scripts/fetch-transcripts.js
         env:
           ACTIVE_PODCASTS: ${{ vars.ACTIVE_PODCASTS }}
         continue-on-error: true
-
-      - name: Generate Morning OS briefing
+      - name: Generate briefing
         run: |
-          echo "Token length: ..."
+          echo "TOKEN_LEN=${#GOOGLE_REFRESH_TOKEN}"
           node scripts/generate.js
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -49,13 +33,3 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
-          DEBUG: ${{ inputs.debug || 'false' }}
-
-      - name: Upload logs as artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: morning-os-logs-${{ github.run_id }}
-          path: logs/
-          retention-days: 7
-          if-no-files-found: ignore
