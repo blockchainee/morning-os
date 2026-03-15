@@ -35,7 +35,7 @@ const GOOGLE_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN;
 if (!ANTHROPIC_KEY)        { log('FATAL: ANTHROPIC_API_KEY not set'); process.exit(1); }
 if (!NOTION_KEY)           { log('FATAL: NOTION_API_KEY not set'); process.exit(1); }
 if (!NOTION_DB_ID)         { log('FATAL: NOTION_DATABASE_ID not set'); process.exit(1); }
-if (!GOOGLE_REFRESH_TOKEN) { log('FATAL: GOOGLE_REFRESH_TOKEN not set'); process.exit(1); }
+//if (!GOOGLE_REFRESH_TOKEN) { log('FATAL: GOOGLE_REFRESH_TOKEN not set'); process.exit(1); }
 
 // ── Google OAuth Token Refresh ────────────────────────────────
 let googleAccessToken = null;
