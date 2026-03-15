@@ -37,7 +37,8 @@ jobs:
         continue-on-error: true
 
       - name: Generate Morning OS briefing
-        run: echo "Token length: ${#GOOGLE_REFRESH_TOKEN}"
+        run: |
+          echo "Token length: ..."
           node scripts/generate.js
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
