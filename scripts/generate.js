@@ -131,7 +131,7 @@ async function gmailSearch(query) {
 async function fetchCalendarEvents() {
   const token = await getGoogleAccessToken();
 
-  const dubaiNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+  const dubaiNow = new Date(new Date().toLocaleString('en-US', { timeZone: USER_TIMEZONE }));
   const startOfDay = new Date(dubaiNow);
   startOfDay.setHours(0, 0, 0, 0);
   const endOfWeek = new Date(dubaiNow);
@@ -152,7 +152,7 @@ async function fetchCalendarEvents() {
 async function fetchBirthdays() {
   const token = await getGoogleAccessToken();
   // Check contacts/birthday calendar
-  const dubaiNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+  const dubaiNow = new Date(new Date().toLocaleString('en-US', { timeZone: USER_TIMEZONE }));
   const startOfDay = new Date(dubaiNow); startOfDay.setHours(0,0,0,0);
   const endOfDay   = new Date(dubaiNow); endOfDay.setHours(23,59,59,999);
 
@@ -168,28 +168,32 @@ async function fetchBirthdays() {
 
 // ── Dubai helpers ──────────────────────────────────────────────
 function dubaiNow() {
-  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Dubai' }));
+  return new Date(new Date().toLocaleString('en-US', { timeZone: USER_TIMEZONE }));
 }
 function dubaiDateStr() {
   return dubaiNow().toLocaleDateString('en-GB', {
-    weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone:'Asia/Dubai'
+    weekday:'long', day:'numeric', month:'long', year:'numeric', timeZone: USER_TIMEZONE
   });
 }
 function dubaiDateShort() {
   return dubaiNow().toLocaleDateString('en-GB', {
-    day:'numeric', month:'short', year:'numeric', timeZone:'Asia/Dubai'
+    day:'numeric', month:'short', year:'numeric', timeZone: USER_TIMEZONE
   });
 }
 function dayOfWeek() {
-  return dubaiNow().toLocaleDateString('en-US', { weekday:'long', timeZone:'Asia/Dubai' });
+  return dubaiNow().toLocaleDateString('en-US', { weekday:'long', timeZone: USER_TIMEZONE });
 }
 function todayISODate() {
   return dubaiNow().toISOString().slice(0,10);
 }
 
 // ── Claude API ────────────────────────────────────────────────
-const BASE_SYSTEM = `You are Patrik's personal intelligence officer.
-Patrik: Pre-Sales Leader, 700-person AI platform company, Dubai-based.
+const USER_PROFILE = process.env.USER_PROFILE || 'the user';
+const USER_NAME = process.env.USER_NAME || 'User';
+const USER_CITY = process.env.USER_CITY || 'Dubai';
+const USER_TIMEZONE = process.env.USER_TIMEZONE || 'Asia/Dubai';
+const BASE_SYSTEM = `You are ${USER_NAME}'s personal intelligence officer.
+${USER_PROFILE}
 Domains: D1=Professional/AI/FDE, D2=Wealth/Crypto/DeFi, D3=Geopolitics/Gulf, D4=Personal growth/Habitus.
 Be direct, sharp, substantive. Preserve ALL specific data verbatim. Return ONLY valid JSON, no preamble, no fences.`;
 
@@ -271,7 +275,7 @@ async function fetchCalendar() {
     const today = todayEvents.map(e => {
       const start = e.start?.dateTime;
       const time = start ? new Date(start).toLocaleTimeString('en-GB', {
-        hour:'2-digit', minute:'2-digit', timeZone:'Asia/Dubai'
+        hour:'2-digit', minute:'2-digit', timeZone: USER_TIMEZONE
       }) : 'All day';
       const isExternal = e.attendees && e.attendees.length > 1;
       return {
@@ -319,7 +323,7 @@ async function fetchNewsletter(nl) {
 
     log(`${nl.name}: found "${email.subject}" — processing with Claude...`);
     const result = await claudeCall(
-      `Process this newsletter email for Patrik.
+      `Process this newsletter email for ${USER_NAME}.
 
 Newsletter: ${nl.name}
 Subject: ${email.subject}
@@ -332,9 +336,9 @@ Return JSON:
 {
   "id":"${nl.id}","has_new_edition":true,"date":"${email.date.slice(0,10)}","domain":"${nl.domain}",
   "layer1":{
-    "summary":"One sentence: what happened and why it matters to Patrik",
+    "summary":"One sentence: what happened and why it matters to ${USER_NAME}",
     "signals":["signal with number","signal 2","signal 3"],
-    "relevance":"Direct connection to Patrik's work/crypto/geopolitics/growth",
+    "relevance":"Direct connection to ${USER_NAME}'s work/crypto/geopolitics/growth",
     "triage_suggestion":"act|save|share|noted"
   },
   "layer2":{
@@ -343,7 +347,7 @@ Return JSON:
     "data_points":["every specific number, %, name, date from the email"],
     "notable_quotes":["one sharp verbatim quote if present"],
     "implications_for_patrik":["D1: specific","D2: specific"],
-    "reflection_question":"Sharp question challenging Patrik's existing view"
+    "reflection_question":"Sharp question challenging ${USER_NAME}'s existing view"
   }
 }`, 2500);
     log(`${nl.name}: processed successfully`);
@@ -386,7 +390,7 @@ Return JSON:
     "insights":[{"topic":"Topic","points":["insight 1","insight 2","insight 3"]}],
     "quotes":[{"text":"Exact verbatim quote","speaker":"Name","context":"why it matters"}],
     "recommendations":[{"type":"app|book|podcast|tool|source","name":"Name","note":"why recommended"}],
-    "implications_for_patrik":["Domain implication","Dubai/Pre-Sales connection"],
+    "implications_for_patrik":["Domain implication","${USER_CITY}/professional connection"],
     "reflection_question":"Sharp question to apply this episode's insights"
   }
 }`, 2500);
@@ -402,31 +406,31 @@ async function fetchGrowth() {
     Sunday:'Wildcard',
   };
   return claudeCall(
-    `Generate today's Growth Layer for Patrik. Today: ${dow}, ${dubaiDateStr()}.
+    `Generate today's Growth Layer for ${USER_NAME}. Today: ${dow}, ${dubaiDateStr()}.
 
 Return JSON:
 {
   "small_talk_bridge":{
     "topic_hook":"Current hot topic (AI/crypto/Gulf/geopolitics)",
-    "bridge":"Casual bridge phrase, max 2 sentences, zero jargon, usable at a Dubai dinner party",
-    "when_to_use":"Practical social context in Dubai"
+    "bridge":"Casual bridge phrase, max 2 sentences, zero jargon, usable at a ${USER_CITY} dinner party",
+    "when_to_use":"Practical social context in ${USER_CITY}"
   },
   "arabic":{
     "word":"Arabic script","transliteration":"phonetic","pronunciation":"syllable guide e.g. mab-ROOK",
     "literal_meaning":"direct translation",
     "cultural_story":"2-3 sentences: real UAE street/social usage",
-    "practice_sentence":"One sentence Patrik could say this week"
+    "practice_sentence":"One sentence ${USER_NAME} could say this week"
   },
   "habitus":{
     "category":"the_activity|the_reference|network_insight|investment_lens|life_architecture",
     "title":"3-6 word title",
-    "content":"3-4 sentences: SPECIFIC with real Dubai place names, prices, events. Actionable within 30 days.",
-    "why_it_matters":"One sentence: connection to Patrik's investor/entrepreneur/network goals"
+    "content":"3-4 sentences: SPECIFIC with real ${USER_CITY} place names, prices, events. Actionable within 30 days.",
+    "why_it_matters":"One sentence: connection to ${USER_NAME}'s investor/entrepreneur/network goals"
   },
   "mini_concept":{
     "domain":"${domains[dow]||'Finance & Investing'}",
     "concept_name":"The concept",
-    "five_sentences":["What it is","Where it comes from","Real example","Connection to Patrik's world","Open question"]
+    "five_sentences":["What it is","Where it comes from","Real example","Connection to ${USER_NAME}'s world","Open question"]
   }
 }`, 1500);
 }
