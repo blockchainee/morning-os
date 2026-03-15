@@ -44,6 +44,9 @@ jobs:
           NOTION_DATABASE_ID: ${{ secrets.NOTION_DATABASE_ID }}
           ACTIVE_NEWSLETTERS: ${{ vars.ACTIVE_NEWSLETTERS }}
           ACTIVE_PODCASTS: ${{ vars.ACTIVE_PODCASTS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
           DEBUG: ${{ inputs.debug || 'false' }}
 
       - name: Upload logs as artifact
