@@ -6,6 +6,7 @@ on:
 jobs:
   generate-briefing:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,9 +22,7 @@ jobs:
           ACTIVE_PODCASTS: ${{ vars.ACTIVE_PODCASTS }}
         continue-on-error: true
       - name: Generate briefing
-        run: |
-          echo "TOKEN_LEN=${#GOOGLE_REFRESH_TOKEN}"
-          node scripts/generate.js
+        run: node scripts/generate.js
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
