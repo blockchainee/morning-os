@@ -1,0 +1,1956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Morning OS">
+<title>Morning OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Morning OS — clean Apple-quality light mode */
+  --bg:        #F5F5F0;
+  --bg2:       #FFFFFF;
+  --bg3:       #EDEDEA;
+  --border:    rgba(0,0,0,0.07);
+  --border2:   rgba(0,0,0,0.12);
+  --text:      #111113;
+  --text2:     #52525C;
+  --text3:     #96969F;
+  --accent:    #0E8F62;
+  --accent-bg: #E6F5EF;
+  --accent2:   #4340A8;
+  --accent2-bg:#ECEAFE;
+  --amber:     #B8720F;
+  --amber-bg:  #FDF2E0;
+  --blue:      #1558A0;
+  --blue-bg:   #E4EEF9;
+  --red:       #B52C2C;
+  --red-bg:    #FCEAEA;
+  --font-serif:'Instrument Serif', Georgia, serif;
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --r:         12px;
+  --r-sm:      8px;
+  --r-lg:      16px;
+  --sheet-z:   100;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── APP SHELL ──────────────────────────────────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── STATUS BAR ─────────────────────────────────────────────── */
+#status-bar {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+}
+.sb-left { display: flex; flex-direction: column; gap: 2px; }
+.sb-date { font-family: var(--font-serif); font-size: 19px; color: var(--text); letter-spacing: -.2px; }
+.sb-time { font-size: 11px; color: var(--text3); letter-spacing: .3px; font-weight: 500; }
+.sb-right { display: flex; gap: 8px; align-items: center; }
+
+#gen-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 20px;
+  padding: 8px 18px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s, transform .1s;
+  white-space: nowrap;
+  letter-spacing: .1px;
+  box-shadow: 0 1px 3px rgba(14,143,98,.25);
+}
+#gen-btn:active { opacity: .8; transform: scale(.97); }
+#gen-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+#settings-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  color: var(--text2);
+  font-size: 16px;
+  transition: background .15s;
+}
+#settings-btn:active { background: var(--bg3); }
+
+/* ── META PILLS ─────────────────────────────────────────────── */
+#meta-strip {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 16px 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+.mpill {
+  font-size: 11px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.mp-bday  { background: var(--amber-bg);  color: var(--amber); border-color: var(--amber); }
+.mp-mtg   { background: var(--blue-bg);   color: var(--blue);  border-color: var(--blue); }
+.mp-focus { background: var(--accent-bg); color: var(--accent); border-color: var(--accent); }
+.mp-gen   { background: var(--bg3); color: var(--text3); }
+
+/* ── TAB CONTENT ────────────────────────────────────────────── */
+#tab-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 12px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#tab-content::-webkit-scrollbar { display: none; }
+
+/* ── TAB BAR ────────────────────────────────────────────────── */
+#tab-bar {
+  background: var(--bg2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-shrink: 0;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  box-shadow: 0 -1px 0 rgba(0,0,0,.04);
+}
+.tab-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 8px 0 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: 10px;
+  color: var(--text3);
+  font-weight: 500;
+  transition: color .15s;
+}
+.tab-btn.active { color: var(--accent); }
+.tab-indicator {
+  width: 18px; height: 3px;
+  border-radius: 2px;
+  background: var(--border);
+  transition: background .15s;
+}
+.tab-btn.active .tab-indicator { background: var(--accent); }
+
+/* ── SECTION LABEL ──────────────────────────────────────────── */
+.sec-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .8px;
+  padding: 4px 2px 2px;
+}
+
+/* ── BASE CARD ──────────────────────────────────────────────── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color .15s;
+  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+}
+.card:active { border-color: var(--border2); }
+
+/* ── CALENDAR CARD ──────────────────────────────────────────── */
+.bday-banner {
+  background: var(--amber-bg);
+  border-bottom: 1px solid var(--amber);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.bday-avatar {
+  width: 28px; height: 28px;
+  background: var(--amber);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 600;
+  flex-shrink: 0;
+}
+.bday-info { flex: 1; }
+.bday-name { font-size: 12px; font-weight: 600; color: var(--amber); }
+.bday-sub  { font-size: 10px; color: var(--text2); margin-top: 1px; }
+
+.cal-item {
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.cal-item:last-child { border-bottom: none; }
+.cal-time {
+  font-size: 10px;
+  color: var(--text3);
+  width: 36px;
+  flex-shrink: 0;
+  padding-top: 2px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+.cal-body { flex: 1; }
+.cal-title { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.4; }
+.cal-sub   { font-size: 11px; color: var(--text2); margin-top: 1px; line-height: 1.3; }
+.cal-prep  { font-size: 11px; color: var(--amber); margin-top: 2px; line-height: 1.3; }
+.cal-focus { font-size: 11px; color: var(--accent); margin-top: 1px; }
+
+/* ── NEWSLETTER CARD ────────────────────────────────────────── */
+.ncard-header {
+  padding: 9px 12px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.ncard-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+.ncard-source {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+.domain-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+  letter-spacing: .2px;
+}
+.d1 { background: var(--accent2-bg); color: var(--accent2); }
+.d2 { background: var(--accent-bg);  color: var(--accent); }
+.d3 { background: var(--blue-bg);    color: var(--blue); }
+.d4 { background: var(--amber-bg);   color: var(--amber); }
+
+.ncard-summary {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+.signal-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 7px;
+}
+.sig-chip {
+  font-size: 10px;
+  padding: 2px 7px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text2);
+  font-variant-numeric: tabular-nums;
+}
+.ncard-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.triage-row { display: flex; gap: 4px; }
+.tq {
+  font-size: 10px;
+  padding: 3px 7px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  color: var(--text3);
+  background: none;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all .12s;
+  white-space: nowrap;
+}
+.tq:active { transform: scale(.95); }
+.tq.t-act  { background: var(--accent);  color: #fff; border-color: var(--accent); }
+.tq.t-save { background: var(--accent2); color: #fff; border-color: var(--accent2); }
+.tq.t-share{ background: var(--blue);    color: #fff; border-color: var(--blue); }
+.tq.t-done { background: var(--bg3);     color: var(--text3); border-color: var(--border); }
+.deep-btn {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+  padding: 3px 0;
+}
+.no-edition {
+  padding: 6px 12px 10px;
+  font-size: 11px;
+  color: var(--text3);
+  font-style: italic;
+}
+
+/* ── LAYER 2 PANEL ──────────────────────────────────────────── */
+.layer2-panel {
+  border-top: 1px solid var(--accent);
+  background: color-mix(in srgb, var(--accent-bg) 60%, var(--bg2));
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .35s cubic-bezier(.4,0,.2,1);
+}
+.layer2-panel.open { max-height: 900px; }
+.layer2-inner { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.l2-block { display: flex; flex-direction: column; gap: 3px; }
+.l2-lbl {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: .7px;
+}
+.l2-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+}
+.l2-data {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text2);
+  font-variant-numeric: tabular-nums;
+  background: var(--bg3);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+}
+.l2-implications {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--accent);
+}
+.reflect-box {
+  background: var(--accent2-bg);
+  border-left: 3px solid var(--accent2);
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--accent2);
+  font-style: italic;
+}
+.l2-actions { display: flex; gap: 6px; margin-top: 2px; }
+.l2-action {
+  flex: 1;
+  padding: 8px;
+  border-radius: var(--r-sm);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  font-family: var(--font-sans);
+  transition: opacity .15s;
+}
+.l2-action:active { opacity: .75; }
+.act-thesis { background: var(--accent-bg); color: var(--accent); }
+.act-deeper { background: var(--accent2-bg); color: var(--accent2); }
+
+/* divider inside l2 */
+.l2-div { height: 1px; background: var(--border); }
+
+/* ── PODCAST CARD ───────────────────────────────────────────── */
+.pcard-header {
+  padding: 10px 12px;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.pcard-art {
+  width: 40px; height: 40px;
+  border-radius: 8px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+  color: var(--text3);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.pcard-art img { width: 100%; height: 100%; object-fit: cover; }
+.pcard-meta { flex: 1; min-width: 0; }
+.pcard-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.pcard-ep   { font-size: 10px; color: var(--text3); margin-top: 1px; }
+.pcard-sum  { font-size: 12px; line-height: 1.5; color: var(--text2); margin-top: 4px; }
+.pcard-footer {
+  padding: 0 12px 9px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.p-deep-btn {
+  font-size: 11px; font-weight: 600;
+  color: var(--blue); background: none; border: none;
+  cursor: pointer; font-family: var(--font-sans);
+}
+
+/* podcast layer 2 */
+.pl2-panel {
+  border-top: 1px solid var(--blue);
+  background: color-mix(in srgb, var(--blue-bg) 50%, var(--bg2));
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .35s cubic-bezier(.4,0,.2,1);
+}
+.pl2-panel.open { max-height: 1200px; }
+.pl2-inner { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+
+.pl2-section { display: flex; flex-direction: column; gap: 5px; }
+.pl2-sec-lbl {
+  font-size: 9px; font-weight: 700;
+  color: var(--text3); text-transform: uppercase; letter-spacing: .7px;
+  display: flex; align-items: center; gap: 6px;
+}
+.pl2-topic-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px;
+  background: var(--blue-bg); color: var(--blue);
+  margin-bottom: 3px;
+}
+.pl2-insight {
+  font-size: 12px; line-height: 1.6; color: var(--text);
+  padding-left: 10px;
+  border-left: 2px solid var(--blue);
+  margin-bottom: 4px;
+}
+.pl2-quote {
+  font-size: 12px; line-height: 1.6;
+  color: var(--text2); font-style: italic;
+  background: var(--bg3); border-radius: var(--r-sm);
+  padding: 8px 10px;
+  position: relative;
+}
+.pl2-quote::before {
+  content: '"';
+  font-family: var(--font-serif);
+  font-size: 28px; color: var(--border2);
+  position: absolute; top: 2px; left: 6px;
+  line-height: 1;
+}
+.pl2-quote-text { padding-left: 16px; }
+.pl2-quote-attr { font-size: 10px; color: var(--text3); margin-top: 4px; font-style: normal; padding-left: 16px; }
+
+.pl2-rec-item {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pl2-rec-item:last-child { border-bottom: none; }
+.rec-type {
+  font-size: 9px; font-weight: 600; padding: 2px 6px;
+  border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.rt-app    { background: var(--accent-bg); color: var(--accent); }
+.rt-pod    { background: var(--blue-bg); color: var(--blue); }
+.rt-book   { background: var(--amber-bg); color: var(--amber); }
+.rt-source { background: var(--bg3); color: var(--text2); }
+.rec-text { font-size: 11px; color: var(--text); line-height: 1.4; }
+
+/* ── GROW TAB ───────────────────────────────────────────────── */
+.grow-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  border-left: 3px solid var(--amber);
+  padding: 10px 12px;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.grow-lbl {
+  font-size: 9px; font-weight: 700;
+  color: var(--amber); text-transform: uppercase; letter-spacing: .7px;
+}
+.grow-body { font-size: 12px; line-height: 1.6; color: var(--text); }
+.grow-body em { color: var(--text2); font-style: italic; }
+.grow-arabic {
+  font-size: 22px; font-family: 'Instrument Serif', serif;
+  color: var(--text); margin-bottom: 2px;
+}
+.grow-transliteration { font-size: 11px; color: var(--accent); font-weight: 600; margin-bottom: 4px; }
+
+/* ── SAVED TAB ──────────────────────────────────────────────── */
+.saved-item {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 10px 12px;
+}
+.saved-source { font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 3px; }
+.saved-text   { font-size: 12px; line-height: 1.5; color: var(--text); }
+.saved-date   { font-size: 10px; color: var(--text3); margin-top: 4px; }
+.empty-state  {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 48px 24px;
+  color: var(--text3); font-size: 13px; text-align: center; gap: 8px;
+}
+.empty-icon { font-size: 32px; opacity: .4; }
+
+/* ── SETTINGS PANEL ─────────────────────────────────────────── */
+#settings-panel {
+  position: absolute; top: 0; right: 0; bottom: 0;
+  width: 88%;
+  background: var(--bg2);
+  border-left: 1px solid var(--border2);
+  z-index: var(--sheet-z);
+  transform: translateX(100%);
+  transition: transform .3s cubic-bezier(.4,0,.2,1);
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+#settings-panel.open { transform: translateX(0); }
+#settings-overlay {
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: calc(var(--sheet-z) - 1);
+  opacity: 0; pointer-events: none;
+  transition: opacity .3s;
+}
+#settings-overlay.open { opacity: 1; pointer-events: all; }
+
+.settings-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--bg2);
+  position: sticky; top: 0; z-index: 1;
+}
+.settings-title { font-size: 16px; font-weight: 600; }
+.settings-close {
+  background: none; border: none; color: var(--text2);
+  font-size: 20px; cursor: pointer; padding: 4px;
+  font-family: var(--font-sans);
+}
+
+.settings-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.settings-sec-lbl {
+  font-size: 11px; font-weight: 700;
+  color: var(--text3); text-transform: uppercase;
+  letter-spacing: .7px; margin-bottom: 10px;
+}
+.settings-field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.settings-label { font-size: 12px; font-weight: 500; color: var(--text2); }
+.settings-input {
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r-sm); padding: 9px 11px;
+  font-size: 13px; color: var(--text); font-family: var(--font-sans);
+  width: 100%;
+  outline: none;
+  transition: border-color .15s;
+}
+.settings-input:focus { border-color: var(--accent); }
+.settings-input::placeholder { color: var(--text3); }
+
+.podcast-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.podcast-item:last-child { border-bottom: none; }
+.podcast-toggle {
+  width: 36px; height: 22px;
+  background: var(--border2); border-radius: 11px;
+  position: relative; cursor: pointer;
+  transition: background .2s; flex-shrink: 0; border: none;
+}
+.podcast-toggle.on { background: var(--accent); }
+.podcast-toggle::after {
+  content: ''; position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: #fff; border-radius: 50%;
+  transition: transform .2s;
+}
+.podcast-toggle.on::after { transform: translateX(14px); }
+.podcast-name { flex: 1; font-size: 13px; color: var(--text); font-weight: 500; }
+.podcast-del {
+  background: none; border: none; color: var(--text3);
+  font-size: 18px; cursor: pointer; padding: 2px 6px;
+  transition: color .15s;
+}
+.podcast-del:active { color: var(--red); }
+
+.add-podcast-row { display: flex; gap: 8px; margin-top: 10px; }
+.add-podcast-input {
+  flex: 1;
+  background: var(--bg3); border: 1px solid var(--border2);
+  border-radius: var(--r-sm); padding: 8px 10px;
+  font-size: 13px; color: var(--text); font-family: var(--font-sans);
+  outline: none;
+}
+.add-podcast-input:focus { border-color: var(--accent); }
+.add-btn {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: var(--r-sm);
+  padding: 8px 14px; font-size: 13px; font-weight: 500;
+  cursor: pointer; font-family: var(--font-sans);
+  transition: opacity .15s;
+}
+.add-btn:active { opacity: .8; }
+.save-settings-btn {
+  margin: 16px; background: var(--accent); color: #fff;
+  border: none; border-radius: var(--r); padding: 12px;
+  font-size: 14px; font-weight: 600; width: calc(100% - 32px);
+  cursor: pointer; font-family: var(--font-sans);
+}
+
+/* ── PROGRESS INDICATOR ─────────────────────────────────────── */
+#gen-progress {
+  display: none;
+  padding: 8px 12px;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--accent);
+  flex-shrink: 0;
+}
+#gen-progress.show { display: block; }
+.prog-label { font-size: 11px; color: var(--accent); margin-bottom: 5px; font-weight: 500; }
+.prog-bar-bg {
+  height: 3px; background: var(--border);
+  border-radius: 2px; overflow: hidden;
+}
+.prog-bar-fill {
+  height: 100%; background: var(--accent);
+  border-radius: 2px;
+  transition: width .4s ease;
+}
+.prog-sources {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px;
+}
+.prog-chip {
+  font-size: 9px; padding: 2px 6px;
+  border-radius: 4px; font-weight: 500;
+}
+.pc-pending { background: var(--bg3); color: var(--text3); }
+.pc-loading { background: var(--amber-bg); color: var(--amber); }
+.pc-done    { background: var(--accent-bg); color: var(--accent); }
+.pc-error   { background: var(--red-bg); color: var(--red); }
+
+/* ── ANIMATIONS ─────────────────────────────────────────────── */
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card-enter { animation: fadeSlideIn .3s ease forwards; }
+
+/* ── LOADING SKELETON ───────────────────────────────────────── */
+.skeleton {
+  background: var(--bg3);
+  border-radius: 4px;
+  animation: shimmer 1.4s infinite;
+}
+@keyframes shimmer {
+  0%,100% { opacity: .6; }
+  50%      { opacity: 1; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- STATUS BAR -->
+  <div id="status-bar">
+    <div class="sb-left">
+      <div class="sb-date" id="sb-date">Saturday, 14 Mar</div>
+      <div class="sb-time" id="sb-time">Dubai · 09:41</div>
+    </div>
+    <div class="sb-right">
+      <button id="settings-btn" title="Settings">⚙</button>
+      <button id="gen-btn">Generate</button>
+    </div>
+  </div>
+
+  <!-- META PILLS -->
+  <div id="meta-strip"></div>
+
+  <!-- PROGRESS -->
+  <div id="gen-progress">
+    <div class="prog-label" id="prog-label">Fetching your world…</div>
+    <div class="prog-bar-bg"><div class="prog-bar-fill" id="prog-bar" style="width:0%"></div></div>
+    <div class="prog-sources" id="prog-sources"></div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div id="tab-content"></div>
+
+  <!-- TAB BAR -->
+  <div id="tab-bar">
+    <button class="tab-btn active" data-tab="today">
+      <div class="tab-indicator"></div>Today
+    </button>
+    <button class="tab-btn" data-tab="podcasts">
+      <div class="tab-indicator"></div>Podcasts
+    </button>
+    <button class="tab-btn" data-tab="grow">
+      <div class="tab-indicator"></div>Grow
+    </button>
+    <button class="tab-btn" data-tab="saved">
+      <div class="tab-indicator"></div>Saved
+    </button>
+  </div>
+
+  <!-- SETTINGS OVERLAY + PANEL -->
+  <div id="settings-overlay"></div>
+  <div id="settings-panel">
+    <div class="settings-header">
+      <span class="settings-title">Settings</span>
+      <button class="settings-close" id="settings-close">×</button>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-sec-lbl">Claude API Key</div>
+      <div class="settings-field">
+        <label class="settings-label">Your API key (stored locally, never sent elsewhere)</label>
+        <input class="settings-input" id="api-key-input" type="password" placeholder="sk-ant-api…">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-sec-lbl">Notion Integration</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.6">
+        The GitHub Actions backend writes your daily briefing to Notion. Enter your Notion credentials here so the app can read it.<br>
+        <span style="color:var(--accent)">→ See README for how to get these values</span>
+      </div>
+      <div class="settings-field">
+        <label class="settings-label">Notion Integration Token</label>
+        <input class="settings-input" id="notion-key-input" type="password" placeholder="secret_xxx…">
+      </div>
+      <div class="settings-field">
+        <label class="settings-label">Briefing Database ID</label>
+        <input class="settings-input" id="notion-db-input" placeholder="32-character database ID">
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-sec-lbl">Newsletter Sources</div>
+      <div id="newsletter-list"></div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-sec-lbl">Podcasts</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+        Select shows to track. Transcripts are fetched nightly via YouTube. All channels verified.
+      </div>
+      <input class="settings-input" id="podcast-search" placeholder="Search shows…" style="margin-bottom:10px">
+      <div id="podcast-directory-list"></div>
+    </div>
+
+    <button class="save-settings-btn" id="save-settings-btn">Save Settings</button>
+  </div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+// ── Curated Podcast Directory ──────────────────────────────────
+// Verified YouTube channels — prevents wrong transcripts from typos
+const PODCAST_DIRECTORY = [
+  { id:'bankless',       name:'Bankless',                  channel:'@Bankless',           domain:'D2', desc:'Crypto, DeFi, Ethereum' },
+  { id:'lex-fridman',    name:'Lex Fridman Podcast',       channel:'@lexfridman',         domain:'D1', desc:'AI, science, geopolitics' },
+  { id:'my-first-million', name:'My First Million',        channel:'@MyFirstMillionPod',  domain:'D2', desc:'Business, entrepreneurship' },
+  { id:'knowledge-project', name:'The Knowledge Project',  channel:'@ShaneAParrish',      domain:'D1', desc:'Mental models, decisions' },
+  { id:'tim-ferriss',    name:'The Tim Ferriss Show',      channel:'@TimFerriss',         domain:'D4', desc:'High performance, life design' },
+  { id:'all-in',         name:'All-In Podcast',            channel:'@allinpodcast',       domain:'D2', desc:'Tech, investing, macro' },
+  { id:'huberman',       name:'Huberman Lab',              channel:'@hubermanlab',        domain:'D4', desc:'Neuroscience, health, performance' },
+  { id:'invest-like-best', name:'Invest Like the Best',    channel:'@InvestLiketheBest',  domain:'D2', desc:'Investing, capital allocation' },
+  { id:'acquired',       name:'Acquired',                  channel:'@acquiredfm',         domain:'D1', desc:'Deep dives on great companies' },
+  { id:'diary-of-ceo',   name:'The Diary of a CEO',        channel:'@TheDiaryOfACEO',     domain:'D4', desc:'Entrepreneurship, psychology' },
+];
+
+// ── Backend connection ────────────────────────────────────────
+// Notion integration: the GitHub Actions backend writes a page to Notion daily.
+// The app fetches today's briefing page from Notion via the API.
+// Set NOTION_API_KEY and NOTION_DATABASE_ID in Settings.
+
+async function fetchFromNotion(notionKey, dbId) {
+  if (!notionKey || !dbId) return null;
+  try {
+    // Query Notion DB for today's briefing page
+    const today = new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Dubai'}))
+      .toISOString().slice(0,10);
+    const resp = await fetch('https://api.notion.com/v1/databases/' + dbId + '/query', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + notionKey,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28',
+      },
+      body: JSON.stringify({
+        filter: { property: 'Date', date: { equals: today } },
+        sorts: [{ property: 'Date', direction: 'descending' }],
+        page_size: 1,
+      }),
+    });
+    if (!resp.ok) { console.warn('Notion query failed:', resp.status); return null; }
+    const data = await resp.json();
+    if (!data.results || !data.results.length) return null;
+
+    const page = data.results[0];
+    const pageId = page.id;
+
+    // Fetch page blocks to reconstruct briefing
+    const blocksResp = await fetch('https://api.notion.com/v1/blocks/' + pageId + '/children?page_size=200', {
+      headers: {
+        'Authorization': 'Bearer ' + notionKey,
+        'Notion-Version': '2022-06-28',
+      },
+    });
+    if (!blocksResp.ok) return null;
+    const blocksData = await blocksResp.json();
+
+    // Return a minimal briefing object that tells the app Notion data is loaded
+    return {
+      notion_page_id: pageId,
+      notion_page_url: 'https://notion.so/' + pageId.replace(/-/g,''),
+      notion_blocks: blocksData.results,
+      generated_at_dubai: today,
+      _source: 'notion',
+    };
+  } catch(e) { console.warn('Notion fetch error:', e); return null; }
+}
+
+const STATE = {
+  tab: 'today',
+  apiKey: '',
+  notionKey: '',
+  notionDbId: '',
+  briefing: null,
+  savedItems: [],
+  newsletters: [
+    { id:'a16z',      name:'a16z',               sender:'@a16z.com',                   on:true },
+    { id:'bankless',  name:'Bankless',            sender:'@bankless.com',               on:true },
+    { id:'pomp',      name:'The Pomp Letter',     sender:'pomp@pomp.com',               on:true },
+    { id:'tldr',      name:'TLDR',                sender:'@tldr.tech',                  on:true },
+    { id:'semafor',   name:'Semafor',             sender:'@semafor.com',                on:true },
+    { id:'intrigue',  name:'Intl Intrigue',       sender:'@internationalintrigue.io',   on:true },
+    { id:'lenny',     name:"Lenny's Newsletter",  sender:'lennys-newsletter substack',  on:true },
+    { id:'chamath',   name:'Chamath',             sender:'chamath@socialcapital.com',   on:true },
+    { id:'timeout',   name:'Time Out Dubai',      sender:'@timeout.com',               on:true },
+  ],
+  podcasts: [
+    { id:'bankless-pod', name:'Bankless Podcast',       on:true },
+    { id:'lex',          name:'Lex Fridman Podcast',    on:true },
+    { id:'mfm',          name:'My First Million',       on:true },
+    { id:'knowledge',    name:'The Knowledge Project',  on:true },
+    { id:'tim',          name:'The Tim Ferriss Show',   on:false },
+  ],
+  generating: false,
+};
+
+// ═══════════════════════════════════════════════════════════════
+// PERSISTENCE
+// ═══════════════════════════════════════════════════════════════
+function save() {
+  try {
+    localStorage.setItem('pig_os_key',        STATE.apiKey);
+    localStorage.setItem('pig_os_notion_key',  STATE.notionKey);
+    localStorage.setItem('pig_os_notion_db',   STATE.notionDbId);
+    localStorage.setItem('pig_os_briefing',   JSON.stringify(STATE.briefing));
+    localStorage.setItem('pig_os_saved',      JSON.stringify(STATE.savedItems));
+    localStorage.setItem('pig_os_newsletters',JSON.stringify(STATE.newsletters));
+    localStorage.setItem('pig_os_podcasts',   JSON.stringify(STATE.podcasts));
+  } catch(e) {}
+}
+function load() {
+  try {
+    STATE.apiKey      = localStorage.getItem('pig_os_key') || '';
+    STATE.notionKey   = localStorage.getItem('pig_os_notion_key') || '';
+    STATE.notionDbId  = localStorage.getItem('pig_os_notion_db') || '';
+    STATE.briefing    = JSON.parse(localStorage.getItem('pig_os_briefing') || 'null');
+    STATE.savedItems  = JSON.parse(localStorage.getItem('pig_os_saved')    || '[]');
+    const nl = localStorage.getItem('pig_os_newsletters');
+    if (nl) STATE.newsletters = JSON.parse(nl);
+    const pc = localStorage.getItem('pig_os_podcasts');
+    if (pc) STATE.podcasts = JSON.parse(pc);
+  } catch(e) {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIME & DATE
+// ═══════════════════════════════════════════════════════════════
+function updateClock() {
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone:'Asia/Dubai' }));
+  const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('sb-date').textContent =
+    `${days[now.getDay()]}, ${now.getDate()} ${months[now.getMonth()]}`;
+  document.getElementById('sb-time').textContent =
+    `Dubai · ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+}
+setInterval(updateClock, 30000);
+updateClock();
+
+// ═══════════════════════════════════════════════════════════════
+// META PILLS
+// ═══════════════════════════════════════════════════════════════
+function renderMetaPills(cal, birthdays) {
+  const strip = document.getElementById('meta-strip');
+  strip.innerHTML = '';
+  if (birthdays && birthdays.length) {
+    birthdays.forEach(b => {
+      const p = document.createElement('span');
+      p.className = 'mpill mp-bday';
+      p.textContent = `🎂 ${b.name.split(' ')[0]} today`;
+      strip.appendChild(p);
+    });
+  }
+  if (cal && cal.today && cal.today.length) {
+    const p = document.createElement('span');
+    p.className = 'mpill mp-mtg';
+    p.textContent = `${cal.today.length} meeting${cal.today.length>1?'s':''}`;
+    strip.appendChild(p);
+  }
+  if (cal && cal.focus_window) {
+    const p = document.createElement('span');
+    p.className = 'mpill mp-focus';
+    p.textContent = `Focus ${cal.focus_window}`;
+    strip.appendChild(p);
+  }
+  if (!STATE.briefing) {
+    const p = document.createElement('span');
+    p.className = 'mpill mp-gen';
+    p.textContent = 'Tap Generate to start';
+    strip.appendChild(p);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TAB NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    STATE.tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderTab();
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER TAB
+// ═══════════════════════════════════════════════════════════════
+function renderTab() {
+  const content = document.getElementById('tab-content');
+  content.innerHTML = '';
+  if      (STATE.tab === 'today')    renderToday(content);
+  else if (STATE.tab === 'podcasts') renderPodcasts(content);
+  else if (STATE.tab === 'grow')     renderGrow(content);
+  else if (STATE.tab === 'saved')    renderSaved(content);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TODAY TAB
+// ═══════════════════════════════════════════════════════════════
+function renderToday(el) {
+  const b = STATE.briefing;
+
+  // Section: Calendar
+  el.appendChild(secLabel('Calendar & Birthdays'));
+  el.appendChild(renderCalCard(b ? b.calendar : null, b ? b.birthdays : null));
+
+  // Section: Newsletters
+  const activeNL = STATE.newsletters.filter(n => n.on);
+  el.appendChild(secLabel(`Newsletters · ${activeNL.length} sources`));
+
+  if (!b) {
+    const ph = document.createElement('div');
+    ph.className = 'card';
+    ph.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">
+      Tap <strong style="color:var(--accent)">Generate</strong> to fetch today's briefing
+    </div>`;
+    el.appendChild(ph);
+    return;
+  }
+
+  activeNL.forEach((nl, i) => {
+    const data = b.newsletters ? b.newsletters.find(n => n.id === nl.id) : null;
+    const card = renderNewsletterCard(nl, data);
+    card.style.animationDelay = `${i * 40}ms`;
+    el.appendChild(card);
+  });
+}
+
+function secLabel(text) {
+  const d = document.createElement('div');
+  d.className = 'sec-lbl';
+  d.textContent = text;
+  return d;
+}
+
+// ── Calendar Card ──────────────────────────────────────────────
+function renderCalCard(calData, birthdays) {
+  const card = document.createElement('div');
+  card.className = 'card card-enter';
+
+  // Birthdays
+  if (birthdays && birthdays.length) {
+    birthdays.forEach(b => {
+      const row = document.createElement('div');
+      row.className = 'bday-banner';
+      const initials = b.name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+      row.innerHTML = `
+        <div class="bday-avatar">${initials}</div>
+        <div class="bday-info">
+          <div class="bday-name">${esc(b.name)}</div>
+          <div class="bday-sub">${esc(b.note || `Turns ${b.age || '?'} today`)}</div>
+        </div>`;
+      card.appendChild(row);
+    });
+  }
+
+  if (!calData || !calData.today || !calData.today.length) {
+    // placeholder
+    const p = document.createElement('div');
+    p.className = 'cal-item';
+    p.innerHTML = `<div class="cal-time">—</div>
+      <div class="cal-body"><div class="cal-sub">Calendar data will appear after generating</div></div>`;
+    card.appendChild(p);
+    if (calData && calData.focus_window) {
+      const fw = document.createElement('div');
+      fw.className = 'cal-item';
+      fw.innerHTML = `<div class="cal-time"></div>
+        <div class="cal-body"><div class="cal-focus">Focus window: ${esc(calData.focus_window)}</div></div>`;
+      card.appendChild(fw);
+    }
+    return card;
+  }
+
+  calData.today.forEach(ev => {
+    const row = document.createElement('div');
+    row.className = 'cal-item';
+    row.innerHTML = `
+      <div class="cal-time">${esc(ev.time)}</div>
+      <div class="cal-body">
+        <div class="cal-title">${esc(ev.title)}</div>
+        ${ev.prep ? `<div class="cal-prep">Prep: ${esc(ev.prep)}</div>` : ''}
+        ${ev.note ? `<div class="cal-sub">${esc(ev.note)}</div>` : ''}
+      </div>`;
+    card.appendChild(row);
+  });
+
+  if (calData.focus_window) {
+    const fw = document.createElement('div');
+    fw.className = 'cal-item';
+    fw.innerHTML = `<div class="cal-time"></div>
+      <div class="cal-body"><div class="cal-focus">Focus window: ${esc(calData.focus_window)}</div></div>`;
+    card.appendChild(fw);
+  }
+
+  return card;
+}
+
+// ── Newsletter Card ────────────────────────────────────────────
+function renderNewsletterCard(nl, data) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card card-enter';
+
+  const header = document.createElement('div');
+  header.className = 'ncard-header';
+
+  if (!data || !data.has_new_edition) {
+    header.innerHTML = `
+      <div class="ncard-top">
+        <span class="ncard-source">${esc(nl.name)}</span>
+        <span class="domain-badge" style="background:var(--bg3);color:var(--text3)">no edition</span>
+      </div>`;
+    wrap.appendChild(header);
+    const note = document.createElement('div');
+    note.className = 'no-edition';
+    note.textContent = data ? `Last edition: ${data.date || 'unknown'}` : 'Not fetched yet';
+    wrap.appendChild(note);
+    return wrap;
+  }
+
+  const l1 = data.layer1;
+  const domainClass = { D1:'d1', D2:'d2', D3:'d3', D4:'d4' }[data.domain] || 'd1';
+  const domainLabel = { D1:'D1 pro', D2:'D2 wealth', D3:'D3 world', D4:'D4 growth' }[data.domain] || data.domain;
+
+  header.innerHTML = `
+    <div class="ncard-top">
+      <span class="ncard-source">${esc(nl.name)}</span>
+      <span class="domain-badge ${domainClass}">${esc(domainLabel)}</span>
+    </div>
+    <div class="ncard-summary">${esc(l1.summary)}</div>
+    <div class="signal-row">${(l1.signals||[]).map(s=>`<span class="sig-chip">${esc(s)}</span>`).join('')}</div>
+    <div class="ncard-footer">
+      <div class="triage-row" data-id="${nl.id}">
+        <button class="tq ${data.triage==='act'?'t-act':''}"   data-v="act">act</button>
+        <button class="tq ${data.triage==='save'?'t-save':''}" data-v="save">save</button>
+        <button class="tq ${data.triage==='share'?'t-share':''}" data-v="share">share</button>
+        <button class="tq ${data.triage==='done'?'t-done':''}" data-v="done">✓</button>
+      </div>
+      <button class="deep-btn">read deep →</button>
+    </div>`;
+
+  wrap.appendChild(header);
+
+  // Layer 2 panel
+  const l2panel = document.createElement('div');
+  l2panel.className = 'layer2-panel';
+  const l2 = data.layer2;
+  l2panel.innerHTML = `<div class="layer2-inner">
+    <div class="l2-block">
+      <div class="l2-lbl">Framing</div>
+      <div class="l2-text">${esc(l2.framing)}</div>
+    </div>
+    <div class="l2-div"></div>
+    <div class="l2-block">
+      <div class="l2-lbl">Key stories</div>
+      ${(l2.stories||[]).map(s=>`
+        <div style="margin-bottom:6px">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${esc(s.title)}</div>
+          <div class="l2-text">${esc(s.content)}</div>
+        </div>`).join('')}
+    </div>
+    <div class="l2-div"></div>
+    <div class="l2-block">
+      <div class="l2-lbl">Data points</div>
+      <div class="l2-data">${(l2.data_points||[]).join(' · ')}</div>
+    </div>
+    ${l2.notable_quotes && l2.notable_quotes.length ? `
+    <div class="l2-div"></div>
+    <div class="l2-block">
+      <div class="l2-lbl">Notable quote</div>
+      <div class="reflect-box" style="background:var(--bg3);border-left-color:var(--text3);color:var(--text2)">"${esc(l2.notable_quotes[0])}"</div>
+    </div>` : ''}
+    <div class="l2-div"></div>
+    <div class="l2-block">
+      <div class="l2-lbl">Your domains</div>
+      <div class="l2-implications">${(l2.implications_for_patrik||[]).map(i=>`• ${esc(i)}`).join('<br>')}</div>
+    </div>
+    <div class="reflect-box">${esc(l2.reflection_question)}</div>
+    <div class="l2-actions">
+      <button class="l2-action act-thesis" data-source="${esc(nl.name)}" data-text="${esc(l2.framing)}">Save to thesis</button>
+      <button class="l2-action act-deeper" data-context="${encodeURIComponent(JSON.stringify(l2))}">Go deeper →</button>
+    </div>
+  </div>`;
+  wrap.appendChild(l2panel);
+
+  // Interactions
+  header.querySelector('.deep-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    l2panel.classList.toggle('open');
+    e.currentTarget.textContent = l2panel.classList.contains('open') ? 'collapse ↑' : 'read deep →';
+  });
+
+  header.querySelector('.triage-row').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tq');
+    if (!btn) return;
+    const val = btn.dataset.v;
+    if (data.triage === val) { data.triage = null; }
+    else { data.triage = val; }
+    save();
+    // re-render just the triage row
+    header.querySelectorAll('.tq').forEach(b => {
+      b.className = 'tq';
+      if (b.dataset.v === data.triage) {
+        b.classList.add({ act:'t-act', save:'t-save', share:'t-share', done:'t-done' }[data.triage] || '');
+      }
+    });
+  });
+
+  l2panel.querySelector('.act-thesis').addEventListener('click', (e) => {
+    const source = e.currentTarget.dataset.source;
+    const text   = e.currentTarget.dataset.text;
+    STATE.savedItems.unshift({ type:'thesis', source, text, date: todayStr() });
+    save();
+    e.currentTarget.textContent = 'Saved ✓';
+    e.currentTarget.style.background = 'var(--accent)';
+    e.currentTarget.style.color = '#fff';
+  });
+
+  l2panel.querySelector('.act-deeper').addEventListener('click', (e) => {
+    try {
+      const ctx = JSON.parse(decodeURIComponent(e.currentTarget.dataset.context));
+      const prompt = `I want to go deeper on this intelligence digest:\n\n${JSON.stringify(ctx, null, 2)}\n\nPlease help me explore the key implications, challenge my assumptions, and identify what actions I should take.`;
+      window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank');
+    } catch(err) {
+      window.open('https://claude.ai', '_blank');
+    }
+  });
+
+  return wrap;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PODCASTS TAB
+// ═══════════════════════════════════════════════════════════════
+function renderPodcasts(el) {
+  const b = STATE.briefing;
+  const activePods = STATE.podcasts.filter(p => p.on);
+
+  el.appendChild(secLabel(`Podcasts · ${activePods.length} tracked`));
+
+  if (!b || !b.podcasts || !b.podcasts.length) {
+    const ph = document.createElement('div');
+    ph.className = 'card';
+    ph.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">
+      <div style="font-size:28px;margin-bottom:8px;opacity:.4">🎙</div>
+      Podcast transcripts will appear here after generating.<br>
+      <span style="font-size:11px;color:var(--text3)">Manage tracked shows in Settings</span>
+    </div>`;
+    el.appendChild(ph);
+    return;
+  }
+
+  b.podcasts.forEach((pod, i) => {
+    const card = renderPodcastCard(pod);
+    card.style.animationDelay = `${i * 40}ms`;
+    el.appendChild(card);
+  });
+}
+
+function renderPodcastCard(pod) {
+  const wrap = document.createElement('div');
+  wrap.className = 'card card-enter';
+
+  const header = document.createElement('div');
+  header.className = 'pcard-header';
+
+  const artLetters = pod.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const domainClass = { D1:'d1', D2:'d2', D3:'d3', D4:'d4' }[pod.domain] || 'd1';
+  const domainLabel = { D1:'D1 pro', D2:'D2 wealth', D3:'D3 world', D4:'D4 growth' }[pod.domain] || (pod.domain||'');
+
+  header.innerHTML = `
+    <div class="pcard-art">${artLetters}</div>
+    <div class="pcard-meta">
+      <div class="pcard-name">${esc(pod.name)}</div>
+      <div class="pcard-ep">${esc(pod.episode || '')} · ${esc(pod.duration || '')} · ${esc(pod.date || '')}</div>
+      <div class="pcard-sum">${esc(pod.summary || '')}</div>
+    </div>
+    ${pod.domain ? `<span class="domain-badge ${domainClass}" style="align-self:flex-start;flex-shrink:0">${esc(domainLabel)}</span>` : ''}`;
+  wrap.appendChild(header);
+
+  const footer = document.createElement('div');
+  footer.className = 'pcard-footer';
+  footer.innerHTML = `
+    <div class="triage-row">
+      <button class="tq ${pod.triage==='act'?'t-act':''}"  data-v="act">act</button>
+      <button class="tq ${pod.triage==='save'?'t-save':''}" data-v="save">save</button>
+      <button class="tq ${pod.triage==='done'?'t-done':''}" data-v="done">✓</button>
+    </div>
+    <button class="p-deep-btn">full digest →</button>`;
+  wrap.appendChild(footer);
+
+  // Podcast Layer 2
+  const pl2 = document.createElement('div');
+  pl2.className = 'pl2-panel';
+  const d = pod.digest || {};
+
+  let insightsHtml = '';
+  if (d.insights && d.insights.length) {
+    insightsHtml = d.insights.map(section => `
+      <div class="pl2-topic-tag">${esc(section.topic)}</div>
+      ${section.points.map(p => `<div class="pl2-insight">${esc(p)}</div>`).join('')}
+    `).join('<div style="height:6px"></div>');
+  }
+
+  let quotesHtml = '';
+  if (d.quotes && d.quotes.length) {
+    quotesHtml = d.quotes.map(q => `
+      <div class="pl2-quote">
+        <div class="pl2-quote-text">${esc(q.text)}</div>
+        ${q.speaker ? `<div class="pl2-quote-attr">— ${esc(q.speaker)}</div>` : ''}
+      </div>`).join('');
+  }
+
+  let recsHtml = '';
+  if (d.recommendations && d.recommendations.length) {
+    recsHtml = d.recommendations.map(r => `
+      <div class="pl2-rec-item">
+        <span class="rec-type rt-${r.type||'source'}">${esc(r.type||'source')}</span>
+        <div class="rec-text"><strong>${esc(r.name)}</strong>${r.note ? ` — ${esc(r.note)}` : ''}</div>
+      </div>`).join('');
+  }
+
+  pl2.innerHTML = `<div class="pl2-inner">
+    ${insightsHtml ? `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Key insights by topic</div>
+      ${insightsHtml}
+    </div>` : ''}
+    ${quotesHtml ? `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Best quotes</div>
+      ${quotesHtml}
+    </div>` : ''}
+    ${recsHtml ? `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Recommendations</div>
+      ${recsHtml}
+    </div>` : ''}
+    <div class="l2-actions">
+      <button class="l2-action act-thesis" style="background:var(--blue-bg);color:var(--blue)"
+        data-source="${esc(pod.name)}" data-text="${esc(pod.summary||'')}">Save to thesis</button>
+      <button class="l2-action act-deeper" style="background:var(--accent2-bg);color:var(--accent2)"
+        data-context="${encodeURIComponent(JSON.stringify(d))}">Go deeper →</button>
+    </div>
+  </div>`;
+  wrap.appendChild(pl2);
+
+  footer.querySelector('.p-deep-btn').addEventListener('click', () => {
+    pl2.classList.toggle('open');
+    footer.querySelector('.p-deep-btn').textContent =
+      pl2.classList.contains('open') ? 'collapse ↑' : 'full digest →';
+  });
+
+  footer.querySelector('.triage-row').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tq');
+    if (!btn) return;
+    pod.triage = pod.triage === btn.dataset.v ? null : btn.dataset.v;
+    save();
+    footer.querySelectorAll('.tq').forEach(b => {
+      b.className = 'tq';
+      if (b.dataset.v === pod.triage) b.classList.add({act:'t-act',save:'t-save',done:'t-done'}[pod.triage]||'');
+    });
+  });
+
+  pl2.querySelector('.act-thesis').addEventListener('click', (e) => {
+    STATE.savedItems.unshift({ type:'thesis', source: e.currentTarget.dataset.source, text: e.currentTarget.dataset.text, date: todayStr() });
+    save();
+    e.currentTarget.textContent = 'Saved ✓';
+  });
+
+  pl2.querySelector('.act-deeper').addEventListener('click', () => {
+    const prompt = `I want to explore this podcast digest more deeply:\n\n${pod.name}\n\n${pod.summary || ''}`;
+    window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank');
+  });
+
+  return wrap;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// GROW TAB
+// ═══════════════════════════════════════════════════════════════
+function renderGrow(el) {
+  const b = STATE.briefing;
+  const g = b ? b.growth : null;
+
+  el.appendChild(secLabel('Grow · ' + dayOfWeek()));
+
+  if (!g) {
+    const ph = document.createElement('div');
+    ph.style.cssText = 'text-align:center;padding:40px 20px;color:var(--text3);font-size:13px';
+    ph.textContent = 'Growth content appears after generating your briefing.';
+    el.appendChild(ph);
+    return;
+  }
+
+  // Small Talk Bridge
+  if (g.small_talk) {
+    const c = document.createElement('div');
+    c.className = 'grow-card card-enter';
+    c.innerHTML = `<div class="grow-lbl">Small Talk Bridge</div>
+      <div class="grow-body">
+        <strong style="color:var(--text2);font-size:11px">Hook: ${esc(g.small_talk.topic_hook)}</strong><br>
+        Bridge: <em>"${esc(g.small_talk.bridge)}"</em>
+        ${g.small_talk.when_to_use ? `<div style="margin-top:5px;font-size:11px;color:var(--text3)">When: ${esc(g.small_talk.when_to_use)}</div>` : ''}
+      </div>`;
+    el.appendChild(c);
+  }
+
+  // Arabic
+  if (g.arabic) {
+    const c = document.createElement('div');
+    c.className = 'grow-card card-enter';
+    c.style.animationDelay = '60ms';
+    c.innerHTML = `<div class="grow-lbl">Arabic · كلمة اليوم</div>
+      <div class="grow-arabic">${esc(g.arabic.word)}</div>
+      <div class="grow-transliteration">${esc(g.arabic.transliteration)} · ${esc(g.arabic.pronunciation)}</div>
+      <div class="grow-body">${esc(g.arabic.cultural_story)}</div>
+      ${g.arabic.practice_sentence ? `<div style="margin-top:5px;background:var(--bg3);border-radius:var(--r-sm);padding:7px 9px;font-size:12px;color:var(--text2)">Practice: <em>"${esc(g.arabic.practice_sentence)}"</em></div>` : ''}`;
+    el.appendChild(c);
+  }
+
+  // Habitus
+  if (g.habitus) {
+    const c = document.createElement('div');
+    c.className = 'grow-card card-enter';
+    c.style.animationDelay = '120ms';
+    c.innerHTML = `<div class="grow-lbl">Habitus · ${esc(g.habitus.category||'inspiration')}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">${esc(g.habitus.title)}</div>
+      <div class="grow-body">${esc(g.habitus.content)}</div>
+      ${g.habitus.why_it_matters ? `<div style="margin-top:5px;font-size:11px;color:var(--amber)">${esc(g.habitus.why_it_matters)}</div>` : ''}`;
+    el.appendChild(c);
+  }
+
+  // Mini concept
+  if (g.mini_concept) {
+    const c = document.createElement('div');
+    c.className = 'grow-card card-enter';
+    c.style.animationDelay = '180ms';
+    c.innerHTML = `<div class="grow-lbl">Mini-concept · ${esc(g.mini_concept.domain)}</div>
+      <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:4px">${esc(g.mini_concept.concept_name)}</div>
+      <div class="grow-body">${(g.mini_concept.five_sentences||[]).join(' ')}</div>`;
+    el.appendChild(c);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SAVED TAB
+// ═══════════════════════════════════════════════════════════════
+function renderSaved(el) {
+  el.appendChild(secLabel('Saved items'));
+  if (!STATE.savedItems.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.innerHTML = `<div class="empty-icon">📎</div>
+      <div>Nothing saved yet</div>
+      <div style="font-size:11px">Tap "Save to thesis" on any digest to collect insights here</div>`;
+    el.appendChild(empty);
+    return;
+  }
+  STATE.savedItems.forEach(item => {
+    const d = document.createElement('div');
+    d.className = 'saved-item card card-enter';
+    d.innerHTML = `<div class="saved-source">${esc(item.source)}</div>
+      <div class="saved-text">${esc(item.text)}</div>
+      <div class="saved-date">${esc(item.date)}</div>`;
+    el.appendChild(d);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SETTINGS PANEL
+// ═══════════════════════════════════════════════════════════════
+function openSettings() {
+  document.getElementById('api-key-input').value = STATE.apiKey;
+  const nk = document.getElementById('notion-key-input'); if(nk) nk.value = STATE.notionKey;
+  const nd = document.getElementById('notion-db-input'); if(nd) nd.value = STATE.notionDbId;
+  renderSettingsPodcasts();
+  renderSettingsNewsletters();
+  document.getElementById('settings-panel').classList.add('open');
+  document.getElementById('settings-overlay').classList.add('open');
+}
+function closeSettings() {
+  document.getElementById('settings-panel').classList.remove('open');
+  document.getElementById('settings-overlay').classList.remove('open');
+}
+document.getElementById('settings-btn').addEventListener('click', openSettings);
+document.getElementById('settings-close').addEventListener('click', closeSettings);
+document.getElementById('settings-overlay').addEventListener('click', closeSettings);
+
+function renderSettingsNewsletters() {
+  const list = document.getElementById('newsletter-list');
+  list.innerHTML = '';
+  STATE.newsletters.forEach(nl => {
+    const row = document.createElement('div');
+    row.className = 'podcast-item';
+    row.innerHTML = `
+      <button class="podcast-toggle ${nl.on?'on':''}" data-id="${nl.id}"></button>
+      <span class="podcast-name">${esc(nl.name)}</span>`;
+    row.querySelector('.podcast-toggle').addEventListener('click', (e) => {
+      nl.on = !nl.on;
+      e.currentTarget.classList.toggle('on', nl.on);
+    });
+    list.appendChild(row);
+  });
+}
+
+// ── iTunes podcast search ─────────────────────────────────────
+let itunesSearchTimeout = null;
+let itunesResults = [];
+
+async function searchITunes(query) {
+  if (!query || query.length < 2) { renderPodcastSearchResults([]); return; }
+  clearTimeout(itunesSearchTimeout);
+  itunesSearchTimeout = setTimeout(async () => {
+    try {
+      // Use iTunes Search API — no key needed, returns podcast metadata
+      const url = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=podcast&entity=podcast&limit=8&country=ae`;
+      const resp = await fetch(url);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      itunesResults = data.results || [];
+      renderPodcastSearchResults(itunesResults);
+    } catch(e) { console.warn('iTunes search error:', e); }
+  }, 350);
+}
+
+function renderPodcastSearchResults(results) {
+  const list = document.getElementById('podcast-directory-list');
+  if (!list) return;
+
+  // Show active podcasts first
+  const activePods = STATE.podcasts.filter(p => p.on);
+  let html = '';
+
+  if (activePods.length) {
+    html += `<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Tracking (${activePods.length})</div>`;
+    activePods.forEach(pod => {
+      const domainColors = { D1:'var(--accent2-bg);color:var(--accent2)', D2:'var(--accent-bg);color:var(--accent)', D3:'var(--blue-bg);color:var(--blue)', D4:'var(--amber-bg);color:var(--amber)' };
+      const dc = domainColors[pod.domain || 'D1'] || domainColors.D1;
+      html += `<div class="podcast-item" style="align-items:center">
+        <button class="podcast-toggle on" data-remove="${esc(pod.id)}"></button>
+        ${pod.artwork ? `<img src="${esc(pod.artwork)}" style="width:32px;height:32px;border-radius:6px;flex-shrink:0" loading="lazy">` : `<div style="width:32px;height:32px;border-radius:6px;background:var(--bg3);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--text3)">${esc((pod.name||'?')[0])}</div>`}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(pod.name)}</div>
+          ${pod.artist ? `<div style="font-size:10px;color:var(--text3)">${esc(pod.artist)}</div>` : ''}
+        </div>
+      </div>`;
+    });
+    if (results.length) html += '<div style="height:0.5px;background:var(--border);margin:8px 0"></div>';
+  }
+
+  if (results.length) {
+    html += `<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Search results</div>`;
+    results.forEach(pod => {
+      const alreadyAdded = STATE.podcasts.some(p => p.itunesId === pod.collectionId && p.on);
+      const artwork = (pod.artworkUrl100 || '').replace('100x100', '60x60');
+      html += `<div class="podcast-item" style="align-items:center;opacity:${alreadyAdded ? '0.5' : '1'}">
+        <button class="podcast-toggle ${alreadyAdded ? 'on disabled' : ''}" data-add="${pod.collectionId}" data-name="${esc(pod.collectionName)}" data-artist="${esc(pod.artistName || '')}" data-artwork="${esc(artwork)}"></button>
+        ${artwork ? `<img src="${esc(artwork)}" style="width:32px;height:32px;border-radius:6px;flex-shrink:0" loading="lazy">` : ''}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(pod.collectionName)}</div>
+          <div style="font-size:10px;color:var(--text3)">${esc(pod.artistName || '')} · ${pod.trackCount || '?'} episodes</div>
+        </div>
+      </div>`;
+    });
+  } else if (!activePods.length) {
+    html += '<div style="font-size:12px;color:var(--text3);padding:12px 0;text-align:center">Type to search for podcasts</div>';
+  }
+
+  list.innerHTML = html;
+
+  // Wire up toggle buttons
+  list.querySelectorAll('[data-add]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('disabled')) return;
+      const id = 'itunes_' + btn.dataset.add;
+      if (!STATE.podcasts.find(p => p.id === id)) {
+        STATE.podcasts.push({
+          id,
+          itunesId: parseInt(btn.dataset.add),
+          name: btn.dataset.name,
+          artist: btn.dataset.artist,
+          artwork: btn.dataset.artwork,
+          on: true,
+          domain: 'D1',
+        });
+      }
+      renderSettingsPodcasts();
+    });
+  });
+
+  list.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.remove;
+      const pod = STATE.podcasts.find(p => p.id === id);
+      if (pod) pod.on = false;
+      renderSettingsPodcasts();
+    });
+  });
+}
+
+function renderSettingsPodcasts() {
+  renderPodcastSearchResults(itunesResults);
+}
+
+function filterPodcasts(query) {
+  const list = document.getElementById('podcast-directory-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const q = query.toLowerCase();
+  const filtered = PODCAST_DIRECTORY.filter(p =>
+    !q || p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q)
+  );
+  if (!filtered.length) {
+    list.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px 0">No shows match</div>';
+    return;
+  }
+  filtered.forEach(pod => {
+    const isActive = STATE.podcasts.some(p => p.id === pod.id && p.on);
+    const domainColors = { D1:'var(--accent2-bg);color:var(--accent2)', D2:'var(--accent-bg);color:var(--accent)', D3:'var(--blue-bg);color:var(--blue)', D4:'var(--amber-bg);color:var(--amber)' };
+    const dc = domainColors[pod.domain] || domainColors.D1;
+    const row = document.createElement('div');
+    row.className = 'podcast-item';
+    row.style.cssText = 'align-items:flex-start;gap:10px;padding:9px 0';
+    row.innerHTML = `
+      <button class="podcast-toggle ${isActive?'on':''}" style="margin-top:2px;flex-shrink:0"></button>
+      <div style="flex:1;min-width:0">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px">
+          <span style="font-size:12px;font-weight:600;color:var(--text)">${esc(pod.name)}</span>
+          <span style="font-size:9px;font-weight:600;padding:1px 6px;border-radius:20px;background:${dc}">${pod.domain}</span>
+        </div>
+        <div style="font-size:11px;color:var(--text3)">${esc(pod.desc)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:1px">YouTube: ${esc(pod.channel)}</div>
+      </div>`;
+    row.querySelector('.podcast-toggle').addEventListener('click', (e) => {
+      const active = e.currentTarget.classList.toggle('on');
+      if (active) {
+        if (!STATE.podcasts.find(p => p.id === pod.id)) {
+          STATE.podcasts.push({ id: pod.id, name: pod.name, on: true });
+        } else {
+          STATE.podcasts.find(p => p.id === pod.id).on = true;
+        }
+      } else {
+        const existing = STATE.podcasts.find(p => p.id === pod.id);
+        if (existing) existing.on = false;
+      }
+    });
+    list.appendChild(row);
+  });
+}
+
+// Wire up search + settings inputs after DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+  const searchEl = document.getElementById('podcast-search');
+  if (searchEl) searchEl.addEventListener('input', e => searchITunes(e.target.value));
+});
+
+document.getElementById('save-settings-btn').addEventListener('click', () => {
+  STATE.apiKey = document.getElementById('api-key-input').value.trim();
+  const nk = document.getElementById('notion-key-input'); if(nk) STATE.notionKey = nk.value.trim();
+  const nd = document.getElementById('notion-db-input'); if(nd) STATE.notionDbId = nd.value.trim();
+  save();
+  closeSettings();
+  renderTab();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GENERATION ENGINE
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('gen-btn').addEventListener('click', async () => {
+  if (STATE.generating) return;
+
+  // Try Notion first (backend has already generated the briefing)
+  if (STATE.notionKey && STATE.notionDbId) {
+    document.getElementById('gen-btn').disabled = true;
+    document.getElementById('gen-btn').textContent = 'Loading from Notion…';
+    try {
+      const notionData = await fetchFromNotion(STATE.notionKey, STATE.notionDbId);
+      if (notionData && notionData._source === 'notion') {
+        // Render Notion content directly
+        STATE.briefing = notionData;
+        save();
+        renderTab();
+        document.getElementById('gen-btn').textContent = 'Refresh';
+        document.getElementById('gen-btn').disabled = false;
+        // Show Notion link in meta strip
+        const strip = document.getElementById('meta-strip');
+        const link = document.createElement('a');
+        link.href = notionData.notion_page_url;
+        link.target = '_blank';
+        link.className = 'mpill mp-focus';
+        link.style.textDecoration = 'none';
+        link.textContent = 'Open in Notion →';
+        strip.appendChild(link);
+        return;
+      }
+    } catch(e) { console.warn('Notion load failed:', e); }
+    document.getElementById('gen-btn').disabled = false;
+    document.getElementById('gen-btn').textContent = 'Generate';
+  }
+
+  // Fall back to direct Claude API call
+  if (!STATE.apiKey) {
+    openSettings();
+    document.getElementById('api-key-input').focus();
+    return;
+  }
+  generateBriefing();
+});
+
+async function generateBriefing() {
+  STATE.generating = true;
+  document.getElementById('gen-btn').disabled = true;
+  document.getElementById('gen-btn').textContent = 'Generating…';
+
+  const prog = document.getElementById('gen-progress');
+  prog.classList.add('show');
+
+  const activeNL = STATE.newsletters.filter(n => n.on);
+  const sources = ['calendar', 'growth', ...activeNL.map(n => n.id)];
+  const total = sources.length;
+  let done = 0;
+
+  // Init progress chips
+  const pSources = document.getElementById('prog-sources');
+  pSources.innerHTML = '';
+  const chips = {};
+  ['cal','grow',...activeNL.map(n=>n.id)].forEach((id,i) => {
+    const chip = document.createElement('span');
+    chip.className = 'prog-chip pc-pending';
+    chip.textContent = id === 'cal' ? 'cal' : id === 'grow' ? 'grow' : activeNL.find(n=>n.id===id)?.name.slice(0,6) || id;
+    chips[id] = chip;
+    pSources.appendChild(chip);
+  });
+
+  function setChip(id, status) {
+    if (chips[id]) {
+      chips[id].className = `prog-chip pc-${status}`;
+    }
+  }
+  function tick(id) {
+    done++;
+    setChip(id, 'done');
+    document.getElementById('prog-bar').style.width = `${Math.round(done/total*100)}%`;
+    document.getElementById('prog-label').textContent = `${done} of ${total} sources loaded…`;
+  }
+
+  // Initialize briefing structure
+  STATE.briefing = {
+    date: todayStr(),
+    calendar: null,
+    birthdays: [],
+    newsletters: [],
+    podcasts: [],
+    growth: null,
+  };
+
+  // Run all calls in parallel
+  setChip('cal', 'loading');
+  setChip('grow', 'loading');
+  activeNL.forEach(nl => setChip(nl.id, 'loading'));
+
+  const allPromises = [
+    callCalendar().then(data => {
+      STATE.briefing.calendar = data.calendar;
+      STATE.briefing.birthdays = data.birthdays || [];
+      renderMetaPills(data.calendar, data.birthdays);
+      tick('cal');
+    }).catch(() => { setChip('cal','error'); tick('cal'); }),
+
+    callGrowth().then(data => {
+      STATE.briefing.growth = data;
+      tick('grow');
+    }).catch(() => { setChip('grow','error'); tick('grow'); }),
+
+    ...activeNL.map(nl =>
+      callNewsletter(nl).then(data => {
+        STATE.briefing.newsletters.push({ ...data, id: nl.id });
+        tick(nl.id);
+        if (STATE.tab === 'today') renderTab(); // live update
+      }).catch(() => {
+        STATE.briefing.newsletters.push({ id: nl.id, has_new_edition: false });
+        setChip(nl.id,'error'); tick(nl.id);
+      })
+    )
+  ];
+
+  await Promise.allSettled(allPromises);
+
+  save();
+  STATE.generating = false;
+  document.getElementById('gen-btn').disabled = false;
+  document.getElementById('gen-btn').textContent = 'Refresh';
+  document.getElementById('prog-label').textContent = 'Briefing complete';
+
+  setTimeout(() => {
+    prog.classList.remove('show');
+    document.getElementById('prog-bar').style.width = '0%';
+  }, 2500);
+
+  renderTab();
+}
+
+// ─── Claude API call helper ────────────────────────────────────
+async function claudeCall(systemPrompt, userContent, mcpServers = []) {
+  const body = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userContent }],
+  };
+  if (mcpServers.length) body.mcp_servers = mcpServers;
+
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': STATE.apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'mcp-client-2025-04-04',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!resp.ok) throw new Error(`API error ${resp.status}`);
+  const data = await resp.json();
+
+  // Extract text from response (handle MCP tool use patterns)
+  const textBlocks = data.content
+    .filter(b => b.type === 'text')
+    .map(b => b.text)
+    .join('');
+
+  const clean = textBlocks.replace(/```json|```/g, '').trim();
+  return JSON.parse(clean);
+}
+
+const BASE_SYSTEM = `You are Patrik's personal intelligence officer. Patrik is a Pre-Sales Leader at a 700-person AI platform company in Dubai. His domains: D1=Professional/AI/FDE model, D2=Wealth/Crypto/DeFi, D3=Geopolitics/World model, D4=Personal growth/Habitus. Be direct, sharp, substantive. Preserve all specific numbers and names verbatim. Return ONLY valid JSON with no preamble or markdown fences.`;
+
+async function callCalendar() {
+  return claudeCall(
+    BASE_SYSTEM,
+    `Use Google Calendar MCP to fetch today's events and the next 7 days. Also check for any birthdays in Google Contacts or Calendar. Return JSON:
+{
+  "calendar": {
+    "today": [{"time":"09:30","title":"Meeting Name","prep":"optional prep note","note":"optional context"}],
+    "week_heavy_days": ["Monday","Thursday"],
+    "focus_window": "14:00–16:00"
+  },
+  "birthdays": [{"name":"Full Name","age":38,"note":"relationship context"}]
+}
+If no birthdays today, return empty array. Dubai timezone UTC+4.`,
+    [{ type:'url', url:'https://gcal.mcp.claude.com/mcp', name:'gcal' }]
+  );
+}
+
+async function callNewsletter(nl) {
+  return claudeCall(
+    BASE_SYSTEM,
+    `Use Gmail MCP to search for the most recent email from: ${nl.sender}. If found and sent within last 48 hours, process it. Return JSON:
+{
+  "id": "${nl.id}",
+  "has_new_edition": true,
+  "date": "14 Mar",
+  "domain": "D2",
+  "layer1": {
+    "summary": "One sentence: what happened and why it matters",
+    "signals": ["signal 1","signal 2","signal 3"],
+    "relevance": "Why this matters to Patrik specifically",
+    "triage_suggestion": "save"
+  },
+  "layer2": {
+    "framing": "Author's main argument this edition",
+    "stories": [{"title":"Story title","content":"3-5 sentences preserving all specific data"}],
+    "data_points": ["all specific numbers, names, dates verbatim"],
+    "notable_quotes": ["one sharp direct quote if present"],
+    "implications_for_patrik": ["D1: implication","D2: implication"],
+    "reflection_question": "Sharp specific question that challenges Patrik's existing views"
+  }
+}
+If no email found within 48h, return {"id":"${nl.id}","has_new_edition":false,"date":"unknown"}.`,
+    [{ type:'url', url:'https://gmail.mcp.claude.com/mcp', name:'gmail' }]
+  );
+}
+
+async function callGrowth() {
+  const dow = dayOfWeek();
+  const domains = { Monday:'Business & Strategy', Tuesday:'Finance & Investing', Wednesday:'Technology & AI',
+    Thursday:'Leadership & Psychology', Friday:'Geopolitics & History',
+    Saturday:'Innovation & Entrepreneurship', Sunday:'Wildcard' };
+  const domain = domains[dow] || 'Finance & Investing';
+
+  return claudeCall(
+    BASE_SYSTEM,
+    `Generate today's Growth Layer content for Patrik. Today is ${dow} in Dubai.
+
+Return JSON:
+{
+  "small_talk_bridge": {
+    "topic_hook": "a current news topic from today (AI, crypto, geopolitics)",
+    "bridge": "The specific bridge phrase — casual, accessible, no jargon",
+    "when_to_use": "practical social context in Dubai"
+  },
+  "arabic": {
+    "word": "Arabic script",
+    "transliteration": "phonetic",
+    "pronunciation": "syllable guide",
+    "literal_meaning": "direct translation",
+    "cultural_story": "2-3 sentences on real UAE usage and social meaning",
+    "practice_sentence": "one sentence Patrik could say this week"
+  },
+  "habitus": {
+    "category": "the_activity",
+    "title": "Short evocative title",
+    "content": "3-4 sentences — specific, concrete, actionable in Dubai within 30 days",
+    "why_it_matters": "one sentence on how this expands Patrik's world"
+  },
+  "mini_concept": {
+    "domain": "${domain}",
+    "concept_name": "The concept name",
+    "five_sentences": ["What it is","Where it comes from","Real world example","How it connects to Patrik's world","Open question it leaves"]
+  }
+}`,
+    []
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════════
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;');
+}
+function todayStr() {
+  return new Date().toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric', timeZone:'Asia/Dubai' });
+}
+function dayOfWeek() {
+  return new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Dubai'}))
+    .toLocaleDateString('en-US',{weekday:'long'});
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+load();
+
+// Load cached meta pills
+if (STATE.briefing) {
+  renderMetaPills(STATE.briefing.calendar, STATE.briefing.birthdays);
+} else {
+  renderMetaPills(null, null);
+}
+
+renderTab();
+</script>
+</body>
+</html>
