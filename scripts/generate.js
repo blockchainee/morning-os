@@ -31,9 +31,6 @@ const NOTION_DB_ID    = process.env.NOTION_DATABASE_ID;
 const GOOGLE_CLIENT_ID     = process.env['GOOGLE_CLIENT_ID'];
 const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'];
 const GOOGLE_REFRESH_TOKEN = process.env['GOOGLE_REFRESH_TOKEN'];
-log(`DEBUG: CLIENT_ID=${GOOGLE_CLIENT_ID ? GOOGLE_CLIENT_ID.slice(0,20)+'...' : 'MISSING'}`);
-log(`DEBUG: CLIENT_SECRET=${GOOGLE_CLIENT_SECRET ? 'SET' : 'MISSING'}`);
-log(`DEBUG: REFRESH_TOKEN=${GOOGLE_REFRESH_TOKEN ? GOOGLE_REFRESH_TOKEN.slice(0,10)+'...' : 'MISSING'}`);
 if (!ANTHROPIC_KEY)        { log('FATAL: ANTHROPIC_API_KEY not set'); process.exit(1); }
 if (!NOTION_KEY)           { log('FATAL: NOTION_API_KEY not set'); process.exit(1); }
 if (!NOTION_DB_ID)         { log('FATAL: NOTION_DATABASE_ID not set'); process.exit(1); }
