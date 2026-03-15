@@ -1,0 +1,12 @@
+{
+  "name": "morning-os",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Personal AI-powered morning briefing system",
+  "scripts": {
+    "fetch-transcripts": "node scripts/fetch-transcripts.js",
+    "generate": "node scripts/generate.js",
+    "get-google-token": "node scripts/get-google-token.js"
+  }
+}

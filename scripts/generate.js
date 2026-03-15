@@ -1,4 +1,4 @@
-/*/**
+/**
  * Morning OS — Cloud Generator v2
  * Uses Google OAuth directly (no MCP needed).
  * Runs in GitHub Actions, writes to Notion.
@@ -21,7 +21,7 @@ function log(msg) {
   try {
     const existing = existsSync(LOG_FILE) ? readFileSync(LOG_FILE, 'utf8') : '';
     writeFileSync(LOG_FILE, existing + line + '\n');
-  } catch {}
+  } catch (e) { console.error('Log write failed:', e.message); }
 }
 
 // ── Environment ────────────────────────────────────────────────
@@ -31,15 +31,17 @@ const NOTION_DB_ID    = process.env.NOTION_DATABASE_ID;
 const GOOGLE_CLIENT_ID     = process.env['GOOGLE_CLIENT_ID'];
 const GOOGLE_CLIENT_SECRET = process.env['GOOGLE_CLIENT_SECRET'];
 const GOOGLE_REFRESH_TOKEN = process.env['GOOGLE_REFRESH_TOKEN'];
+const GOOGLE_ENABLED = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET && GOOGLE_REFRESH_TOKEN);
 if (!ANTHROPIC_KEY)        { log('FATAL: ANTHROPIC_API_KEY not set'); process.exit(1); }
 if (!NOTION_KEY)           { log('FATAL: NOTION_API_KEY not set'); process.exit(1); }
 if (!NOTION_DB_ID)         { log('FATAL: NOTION_DATABASE_ID not set'); process.exit(1); }
-//if (!GOOGLE_REFRESH_TOKEN) { log('FATAL: GOOGLE_REFRESH_TOKEN not set'); process.exit(1); }
+if (!GOOGLE_ENABLED)       { log('WARN: Google OAuth not configured — calendar and newsletters will be skipped'); }
 
 // ── Google OAuth Token Refresh ────────────────────────────────
 let googleAccessToken = null;
 
 async function getGoogleAccessToken() {
+  if (!GOOGLE_ENABLED) throw new Error('Google OAuth not configured');
   if (googleAccessToken) return googleAccessToken;
   log('Refreshing Google access token...');
   const resp = await fetch('https://oauth2.googleapis.com/token', {
@@ -156,7 +158,7 @@ async function fetchBirthdays() {
     if (!resp.ok) return [];
     const data = await resp.json();
     return (data.items || []).map(e => ({ name: e.summary?.replace("'s Birthday", '') || '', note: 'Birthday today' }));
-  } catch { return []; }
+  } catch (err) { log(`Birthdays fetch error: ${err.message}`); return []; }
 }
 
 // ── Dubai helpers ──────────────────────────────────────────────
@@ -216,15 +218,15 @@ async function claudeCall(userContent, maxTokens = 2000) {
 
 // ── Newsletter config ─────────────────────────────────────────
 const ALL_NEWSLETTERS = [
-  { id:'a16z',     name:'a16z',              query:'from:@a16z.com newer_than:3d' },
-  { id:'bankless', name:'Bankless',           query:'from:@bankless.com newer_than:2d' },
-  { id:'pomp',     name:'The Pomp Letter',   query:'from:pomp@pomp.com newer_than:2d' },
-  { id:'tldr',     name:'TLDR',              query:'from:@tldr.tech newer_than:2d' },
-  { id:'semafor',  name:'Semafor',           query:'from:@semafor.com newer_than:2d' },
-  { id:'intrigue', name:'Intl Intrigue',     query:'from:@internationalintrigue.io newer_than:3d' },
-  { id:'lenny',    name:"Lenny's Newsletter",query:'from:@substack.com subject:lenny newer_than:7d' },
-  { id:'chamath',  name:'Chamath',           query:'from:chamath@socialcapital.com newer_than:7d' },
-  { id:'timeout',  name:'Time Out Dubai',    query:'from:@timeout.com newer_than:7d' },
+  { id:'a16z',     name:'a16z',              domain:'D1', query:'from:@a16z.com newer_than:3d' },
+  { id:'bankless', name:'Bankless',           domain:'D2', query:'from:@bankless.com newer_than:2d' },
+  { id:'pomp',     name:'The Pomp Letter',   domain:'D2', query:'from:pomp@pomp.com newer_than:2d' },
+  { id:'tldr',     name:'TLDR',              domain:'D1', query:'from:@tldr.tech newer_than:2d' },
+  { id:'semafor',  name:'Semafor',           domain:'D3', query:'from:@semafor.com newer_than:2d' },
+  { id:'intrigue', name:'Intl Intrigue',     domain:'D3', query:'from:@internationalintrigue.io newer_than:3d' },
+  { id:'lenny',    name:"Lenny's Newsletter",domain:'D1', query:'from:@substack.com subject:lenny newer_than:7d' },
+  { id:'chamath',  name:'Chamath',           domain:'D2', query:'from:chamath@socialcapital.com newer_than:7d' },
+  { id:'timeout',  name:'Time Out Dubai',    domain:'D4', query:'from:@timeout.com newer_than:7d' },
 ];
 
 const PODCAST_DIRECTORY = {
@@ -245,6 +247,10 @@ const PODCAST_DIRECTORY = {
 // ═══════════════════════════════════════════════════════════════
 
 async function fetchCalendar() {
+  if (!GOOGLE_ENABLED) {
+    log('Calendar: skipped (Google OAuth not configured)');
+    return { today: [], focus_window: null, birthdays: [] };
+  }
   log('Fetching calendar...');
   try {
     const [events, birthdays] = await Promise.all([fetchCalendarEvents(), fetchBirthdays()]);
@@ -294,6 +300,10 @@ async function fetchCalendar() {
 }
 
 async function fetchNewsletter(nl) {
+  if (!GOOGLE_ENABLED) {
+    log(`${nl.name}: skipped (Google OAuth not configured)`);
+    return { id: nl.id, has_new_edition: false };
+  }
   log(`Fetching newsletter: ${nl.name}...`);
   try {
     const email = await gmailSearch(nl.query);
@@ -315,7 +325,7 @@ ${email.body}
 
 Return JSON:
 {
-  "id":"${nl.id}","has_new_edition":true,"date":"${email.date.slice(0,10)}","domain":"D1",
+  "id":"${nl.id}","has_new_edition":true,"date":"${email.date.slice(0,10)}","domain":"${nl.domain}",
   "layer1":{
     "summary":"One sentence: what happened and why it matters to Patrik",
     "signals":["signal with number","signal 2","signal 3"],
@@ -530,9 +540,47 @@ function buildNotionBlocks(briefing) {
 
 async function writeToNotion(briefing) {
   log('Writing to Notion...');
+
+  // Check for existing briefing today to prevent duplicates
+  const today = todayISODate();
+  try {
+    const checkResp = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NOTION_KEY}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28',
+      },
+      body: JSON.stringify({
+        filter: { property: 'Date', date: { equals: today } },
+        page_size: 1,
+      }),
+    });
+    if (checkResp.ok) {
+      const existing = await checkResp.json();
+      if (existing.results && existing.results.length > 0) {
+        const existingId = existing.results[0].id;
+        log(`Duplicate detected for ${today} — archiving old page ${existingId}`);
+        await fetch(`https://api.notion.com/v1/pages/${existingId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${NOTION_KEY}`,
+            'Content-Type': 'application/json',
+            'Notion-Version': '2022-06-28',
+          },
+          body: JSON.stringify({ archived: true }),
+        });
+      }
+    }
+  } catch (err) {
+    log(`Dedup check failed (non-fatal): ${err.message}`);
+  }
+
   const bdays = briefing.birthdays||[];
   const bdayNote = bdays.length ? ` 🎂 ${bdays.map(b=>b.name.split(' ')[0]).join(', ')}` : '';
   const pageTitle = `Morning OS · ${dayOfWeek()}, ${dubaiDateShort()}${bdayNote}`;
+
+  const allBlocks = buildNotionBlocks(briefing);
 
   const createResp = await fetch('https://api.notion.com/v1/pages', {
     method: 'POST',
@@ -547,7 +595,7 @@ async function writeToNotion(briefing) {
         Name: { title: [{ type:'text', text:{ content: pageTitle } }] },
         Date: { date: { start: todayISODate() } },
       },
-      children: buildNotionBlocks(briefing).slice(0, 100),
+      children: allBlocks.slice(0, 100),
     }),
   });
 
@@ -560,7 +608,6 @@ async function writeToNotion(briefing) {
   const pageId = page.id;
 
   // Append remaining blocks if > 100
-  const allBlocks = buildNotionBlocks(briefing);
   for (let i = 100; i < allBlocks.length; i += 100) {
     await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
       method: 'PATCH',

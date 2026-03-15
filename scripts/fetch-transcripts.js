@@ -25,7 +25,7 @@ function log(msg) {
   try {
     const existing = existsSync(LOG_FILE) ? readFileSync(LOG_FILE, 'utf8') : '';
     writeFileSync(LOG_FILE, existing + line + '\n');
-  } catch {}
+  } catch (e) { console.error('Log write failed:', e.message); }
 }
 
 // Dubai date string
@@ -126,7 +126,7 @@ async function fetchTranscript(podId) {
       try {
         const files = execSync(`find ${tmpDir} -name "*.vtt" 2>/dev/null`).toString().trim().split('\n');
         vttFile = files.find(f => f.endsWith('.vtt'));
-      } catch {}
+      } catch (err) { log(`${pod.name}: VTT file search error: ${err.message}`); }
 
       if (vttFile && existsSync(vttFile)) {
         const vttContent = readFileSync(vttFile, 'utf8');
@@ -147,7 +147,7 @@ async function fetchTranscript(podId) {
     return false;
   } finally {
     // Cleanup temp dir
-    try { execSync(`rm -rf ${tmpDir}`); } catch {}
+    try { execSync(`rm -rf ${tmpDir}`); } catch (err) { log(`Cleanup failed for ${tmpDir}: ${err.message}`); }
   }
 }
 
