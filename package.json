@@ -6,6 +6,7 @@
   "description": "Personal AI-powered morning briefing system",
   "scripts": {
     "fetch-transcripts": "node scripts/fetch-transcripts.js",
-    "generate": "node scripts/generate.js"
+    "generate": "node scripts/generate.js",
+    "get-google-token": "node scripts/get-google-token.js"
   }
 }

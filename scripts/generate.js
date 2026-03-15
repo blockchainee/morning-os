@@ -540,6 +540,42 @@ function buildNotionBlocks(briefing) {
 
 async function writeToNotion(briefing) {
   log('Writing to Notion...');
+
+  // Check for existing briefing today to prevent duplicates
+  const today = todayISODate();
+  try {
+    const checkResp = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NOTION_KEY}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': '2022-06-28',
+      },
+      body: JSON.stringify({
+        filter: { property: 'Date', date: { equals: today } },
+        page_size: 1,
+      }),
+    });
+    if (checkResp.ok) {
+      const existing = await checkResp.json();
+      if (existing.results && existing.results.length > 0) {
+        const existingId = existing.results[0].id;
+        log(`Duplicate detected for ${today} — archiving old page ${existingId}`);
+        await fetch(`https://api.notion.com/v1/pages/${existingId}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${NOTION_KEY}`,
+            'Content-Type': 'application/json',
+            'Notion-Version': '2022-06-28',
+          },
+          body: JSON.stringify({ archived: true }),
+        });
+      }
+    }
+  } catch (err) {
+    log(`Dedup check failed (non-fatal): ${err.message}`);
+  }
+
   const bdays = briefing.birthdays||[];
   const bdayNote = bdays.length ? ` 🎂 ${bdays.map(b=>b.name.split(' ')[0]).join(', ')}` : '';
   const pageTitle = `Morning OS · ${dayOfWeek()}, ${dubaiDateShort()}${bdayNote}`;

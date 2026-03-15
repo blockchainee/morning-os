@@ -32,9 +32,12 @@ In your GitHub repo → Settings → Secrets and variables → Actions
 
 Add these **Secrets** (encrypted, never visible):
 ```
-ANTHROPIC_API_KEY    → your Claude API key (console.anthropic.com)
-NOTION_API_KEY       → your Notion integration token (see Step 3)
-NOTION_DATABASE_ID   → your Notion briefing database ID (see Step 3)
+ANTHROPIC_API_KEY      → your Claude API key (console.anthropic.com)
+NOTION_API_KEY         → your Notion integration token (see Step 3)
+NOTION_DATABASE_ID     → your Notion briefing database ID (see Step 3)
+GOOGLE_CLIENT_ID       → your Google OAuth client ID (see Step 4)
+GOOGLE_CLIENT_SECRET   → your Google OAuth client secret (see Step 4)
+GOOGLE_REFRESH_TOKEN   → your Google refresh token (see Step 4)
 ```
 
 Add these **Variables** (visible, not sensitive):
@@ -83,21 +86,52 @@ For ACTIVE_PODCASTS — use the podcast IDs below. Only add podcasts you actuall
 
 ---
 
-## Step 4 — Connect Gmail and Calendar to Claude
+## Step 4 — Connect Gmail and Calendar (Google OAuth)
 
-The GitHub Actions script uses Claude's MCP servers to access Gmail and Calendar.
-These MCP servers authenticate via your Claude.ai session.
+The script reads your Gmail newsletters and Google Calendar directly via API.
+This requires a one-time OAuth setup (~5 minutes).
 
-**Important:** MCP authentication requires your Claude.ai account to be connected.
-Currently the best approach:
-1. Log in to claude.ai
-2. Go to Settings → Integrations
-3. Connect Google (Gmail + Calendar)
-4. The MCP servers will use this OAuth session when called from the API
+### Create Google Cloud credentials
 
-*Note: If MCP authentication via API is not yet available for your account,
-the script will still generate the Growth Layer and process podcast transcripts —
-just without live Gmail/Calendar data. Calendar and newsletter sections will be empty.*
+1. Go to [console.cloud.google.com](https://console.cloud.google.com)
+2. Create a new project (or use existing) — name it "Morning OS"
+3. Go to **APIs & Services → Library**, enable:
+   - **Gmail API**
+   - **Google Calendar API**
+4. Go to **APIs & Services → OAuth consent screen**
+   - User type: **External**
+   - App name: "Morning OS"
+   - Add scopes: `gmail.readonly`, `calendar.readonly`
+   - Add your email as a **test user**
+   - Save
+5. Go to **APIs & Services → Credentials**
+   - Click **Create Credentials → OAuth 2.0 Client ID**
+   - Application type: **Web application**
+   - Add **Authorized redirect URI**: `http://localhost:3456/callback`
+   - Click Create
+   - Copy the **Client ID** and **Client Secret**
+
+### Get your refresh token
+
+Run the helper script locally (requires Node.js):
+```bash
+node scripts/get-google-token.js YOUR_CLIENT_ID YOUR_CLIENT_SECRET
+```
+
+This opens a browser window where you sign in with your Google account.
+After authorizing, it prints your `GOOGLE_REFRESH_TOKEN`.
+
+### Add to GitHub Secrets
+
+Add these three secrets in your GitHub repo (Settings → Secrets → Actions):
+```
+GOOGLE_CLIENT_ID       → from step 5 above
+GOOGLE_CLIENT_SECRET   → from step 5 above
+GOOGLE_REFRESH_TOKEN   → from the helper script output
+```
+
+*Note: If you skip this step, Morning OS will still generate the Growth Layer
+and process podcast transcripts — just without Gmail newsletters or Calendar data.*
 
 ---
 
