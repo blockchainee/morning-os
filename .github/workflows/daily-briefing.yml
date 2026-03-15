@@ -32,3 +32,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          USER_NAME: ${{ secrets.USER_NAME }}
+          USER_PROFILE: ${{ secrets.USER_PROFILE }}
+          USER_CITY: ${{ secrets.USER_CITY }}
+          USER_TIMEZONE: ${{ secrets.USER_TIMEZONE }}
