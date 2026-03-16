@@ -1,0 +1,42 @@
+name: Morning OS — Weekly Intelligence Synthesis
+
+on:
+  schedule:
+    - cron: '0 2 * * 0'  # 02:00 UTC = 06:00 Dubai (UTC+4), every Sunday
+  workflow_dispatch:       # Allow manual trigger for testing
+
+jobs:
+  synthesize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write      # Required to commit user-model.md back to repo
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run weekly synthesis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_WEEKLY_DATABASE_ID: ${{ secrets.NOTION_WEEKLY_DATABASE_ID }}
+          USER_NAME: ${{ vars.USER_NAME }}
+        run: node scripts/weekly-synthesis.js
+
+      - name: Commit updated user model and weekly report
+        run: |
+          git config --local user.email "morning-os[bot]@users.noreply.github.com"
+          git config --local user.name "Morning OS Bot"
+          git add knowledge/user-model.md weekly-report.json
+          git diff --staged --quiet || git commit -m "Weekly synthesis: $(date +%Y-%m-%d)"
+          git push

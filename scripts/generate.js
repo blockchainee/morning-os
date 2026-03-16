@@ -4,7 +4,7 @@
  * Runs in GitHub Actions, writes to Notion.
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -577,6 +577,164 @@ Rules:
   }
 }
 
+// ── Podcast Intelligence (Phase E) ────────────────────────────
+function extractGuestHint(description, transcriptOpening) {
+  const patterns = [
+    /\bwith\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/,
+    /\bfeat(?:uring)?\.?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/,
+    /\bguest[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/i,
+    /\bjoined by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})/,
+  ];
+  const text = `${description} ${transcriptOpening}`;
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+async function searchGuestProfile(guestName) {
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 300,
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+        messages: [{
+          role: 'user',
+          content: `Search for "${guestName}" and return a 2-3 sentence factual profile: who they are, what they're known for, their most notable work or role. Be concise and direct.`
+        }]
+      }),
+    });
+    const data = await resp.json();
+    const textBlock = data.content?.find(b => b.type === 'text');
+    return textBlock?.text || '';
+  } catch (err) {
+    log(`[Guest Profile] Web search failed for ${guestName}: ${err.message}`);
+    return '';
+  }
+}
+
+async function claudePodcastAnalysis(podcastName, podcastId, transcript, meta, guestWebProfile, primaryDomain) {
+  const system = `You are analyzing a podcast episode for ${USER_NAME}.
+
+## User Profile
+${KNOWLEDGE.userProfile}
+
+## Domain Guide
+${KNOWLEDGE.domains}
+
+Return ONLY valid JSON. No preamble. No markdown fences.
+Preserve ALL quotes verbatim — exact words, never paraphrased.
+For recommendations: only include items explicitly mentioned by name in the transcript.`;
+
+  const prompt = `Analyze this podcast episode.
+
+PODCAST: ${podcastName}
+EPISODE: ${meta.episode_title}
+DATE: ${meta.published_date}
+URL: ${meta.url}
+PRIMARY DOMAIN: ${primaryDomain}
+
+${guestWebProfile ? `GUEST PROFILE (from web search):\n${guestWebProfile}\n` : ''}
+
+EPISODE DESCRIPTION:
+${meta.description}
+
+TRANSCRIPT (up to 20,000 chars):
+${transcript}
+
+Return a JSON object matching this exact schema:
+
+{
+  "id": "${podcastId}",
+  "name": "${podcastName}",
+  "episode_title": "${meta.episode_title}",
+  "episode_url": "${meta.url}",
+  "published_date": "${meta.published_date}",
+
+  "speakers": [
+    {
+      "name": "Host or Guest name — extract from transcript introduction",
+      "role": "host|guest",
+      "profile": "For guests only: 2-3 sentence profile. Use web search data if provided above. Extract from transcript introduction if not. Empty string for known hosts.",
+      "profile_source": "transcript|web_search|both"
+    }
+  ],
+
+  "layer1": {
+    "summary": "3-4 sentences. What was this episode about? Lead with the most surprising or valuable idea.",
+    "guest_in_one_line": "Guest name + why this conversation matters. Empty string if host-only.",
+    "key_statements": ["3-5 standalone statements worth remembering independently"],
+    "domain_tags": ["D1", "D2"],
+    "signal_strength": "high|medium|low",
+    "triage": "Must Listen|Worth Skimming|Skip"
+  },
+
+  "layer2": {
+    "topics": [
+      {
+        "title": "Topic title",
+        "summary": "2-3 sentences on what was discussed",
+        "insights": ["insight 1", "insight 2"],
+        "quotes": [
+          {
+            "speaker": "Name",
+            "text": "Verbatim quote — exact words from transcript",
+            "context": "Why this quote matters"
+          }
+        ]
+      }
+    ],
+    "hypotheses": [
+      {
+        "statement": "Bold claim or prediction made in the episode",
+        "speaker": "Who made it",
+        "evidence": "Their supporting reasoning or data",
+        "domain": "D1|D2|D3|D4"
+      }
+    ],
+    "domain_connections": {
+      "D1": "Connection to Professional/AI/FDE or empty string",
+      "D2": "Connection to Wealth/Crypto/DeFi or empty string",
+      "D3": "Connection to Geopolitics/Gulf or empty string",
+      "D4": "Connection to Personal Growth/Habitus or empty string"
+    },
+    "reflection": "One sharp question for the listener"
+  },
+
+  "recommendations": {
+    "books": [{ "title": "", "author": "", "mentioned_by": "", "context": "" }],
+    "podcasts": [{ "name": "", "mentioned_by": "", "context": "" }],
+    "tools": [{ "name": "", "mentioned_by": "", "context": "" }],
+    "people": [{ "name": "", "mentioned_by": "", "context": "" }],
+    "articles_links": [{ "title": "", "mentioned_by": "", "context": "" }],
+    "music": [{ "title": "", "mentioned_by": "", "context": "" }]
+  }
+}
+
+Rules:
+- topics: group by theme, minimum 2 topics, maximum 6.
+- quotes: verbatim only. If you cannot find an exact quote, omit it rather than paraphrase.
+- hypotheses: only include bold claims/predictions, not factual statements.
+- recommendations: only items explicitly named in the transcript. Empty arrays for categories with nothing.
+- key_statements: these should be quotable standalone — not summaries, but memorable formulations.`;
+
+  const raw = await claudeCall(prompt, 4000);
+  try {
+    return typeof raw === 'string' ? JSON.parse(raw) : raw;
+  } catch (e) {
+    log(`[Podcast] JSON parse failed for ${podcastName}: ${e.message}`);
+    return null;
+  }
+}
+
 async function processPodcast(podId, podInfo) {
   const today = todayISODate();
   const yesterday = new Date(dubaiNow());
@@ -591,28 +749,32 @@ async function processPodcast(podId, podInfo) {
   const transcriptFile = candidateFiles.find(f => existsSync(f));
   if (!transcriptFile) { log(`${podInfo.name}: no transcript found`); return null; }
 
-  log(`${podInfo.name}: processing transcript...`);
-  const transcript = readFileSync(transcriptFile, 'utf8').slice(0, 14000);
+  // Determine which date's files to use
+  const fileDate = transcriptFile.includes(today) ? today : yesterdayStr;
 
-  return claudeCall(
-    `Process this podcast transcript: "${podInfo.name}" (domain ${podInfo.domain}).
+  log(`${podInfo.name}: processing transcript (Phase E intelligence)...`);
+  const transcript = readFileSync(transcriptFile, 'utf8').slice(0, 20000);
 
-TRANSCRIPT:
-${transcript}
+  // Load metadata if available
+  const metaPath = join(TRANSCRIPTS_DIR, `${podId}-${fileDate}-meta.json`);
+  const meta = existsSync(metaPath)
+    ? JSON.parse(readFileSync(metaPath, 'utf8'))
+    : { episode_title: '', published_date: fileDate, description: '', url: '' };
 
-Return JSON:
-{
-  "id":"${podId}","name":"${podInfo.name}","domain":"${podInfo.domain}",
-  "episode":"title or episode number","duration":"if mentioned","date":"if mentioned",
-  "summary":"One sentence: core argument or most important insight",
-  "digest":{
-    "insights":[{"topic":"Topic","points":["insight 1","insight 2","insight 3"]}],
-    "quotes":[{"text":"Exact verbatim quote","speaker":"Name","context":"why it matters"}],
-    "recommendations":[{"type":"app|book|podcast|tool|source","name":"Name","note":"why recommended"}],
-    "implications_for_patrik":["Domain implication","${USER_CITY}/professional connection"],
-    "reflection_question":"Sharp question to apply this episode's insights"
+  // Identify guest from description + transcript opening
+  const guestHint = extractGuestHint(meta.description, transcript.slice(0, 3000));
+  log(`${podInfo.name}: guest hint = ${guestHint || 'none (host-only)'}`);
+
+  // Web search for guest profile if guest detected
+  let guestWebProfile = '';
+  if (guestHint) {
+    log(`${podInfo.name}: searching web for guest profile: ${guestHint}...`);
+    guestWebProfile = await searchGuestProfile(guestHint);
+    if (guestWebProfile) log(`${podInfo.name}: guest profile obtained (${guestWebProfile.length} chars)`);
   }
-}`, 2500);
+
+  // Full podcast intelligence analysis
+  return await claudePodcastAnalysis(podInfo.name, podId, transcript, meta, guestWebProfile, podInfo.domain);
 }
 
 async function fetchGrowth() {
@@ -946,6 +1108,22 @@ async function main() {
   const staticPath = join(ROOT, 'briefing.json');
   writeFileSync(staticPath, JSON.stringify(briefing, null, 2));
   log(`Static briefing written to ${staticPath}`);
+
+  // Archive today's briefing (Phase D — daily archive for weekly synthesis)
+  const archiveDir = join(ROOT, 'archive');
+  mkdirSync(archiveDir, { recursive: true });
+  const archiveFile = join(archiveDir, `${todayISODate()}.json`);
+  writeFileSync(archiveFile, JSON.stringify(briefing, null, 2));
+  log(`[Archive] Saved briefing to archive/${todayISODate()}.json`);
+
+  // Cap archive at 90 days
+  const archiveFiles = readdirSync(archiveDir).filter(f => f.endsWith('.json')).sort();
+  if (archiveFiles.length > 90) {
+    archiveFiles.slice(0, archiveFiles.length - 90).forEach(f => {
+      unlinkSync(join(archiveDir, f));
+      log(`[Archive] Pruned old file: ${f}`);
+    });
+  }
 
   const nlSuccess = briefing.newsletters.filter(n=>n.has_new_edition).length;
   log(`=== Done in ${((Date.now()-t0)/1000).toFixed(1)}s · ${nlSuccess}/${activeNewsletters.length} newsletters · ${podcasts.length} podcasts ===`);

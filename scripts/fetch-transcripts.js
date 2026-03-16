@@ -85,6 +85,37 @@ function cleanVtt(vttContent) {
   return paragraphs.join('\n\n');
 }
 
+// ── Episode Metadata Extraction (Phase E2) ────────────────────
+async function extractEpisodeMetadata(podId, pod, tmpDir) {
+  const metaFile = join(TRANSCRIPTS_DIR, `${podId}-${dubaiDate()}-meta.json`);
+  if (existsSync(metaFile)) return; // already extracted
+
+  try {
+    const result = spawnSync('yt-dlp', [
+      '--dump-json',
+      '--no-download',
+      '--playlist-items', '1',
+      `https://www.youtube.com/${pod.channel}/`,
+    ], { timeout: 60000, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+
+    if (result.stdout) {
+      const data = JSON.parse(result.stdout);
+      const meta = {
+        episode_title: data.title || '',
+        published_date: data.upload_date
+          ? `${data.upload_date.slice(0,4)}-${data.upload_date.slice(4,6)}-${data.upload_date.slice(6,8)}`
+          : dubaiDate(),
+        description: (data.description || '').slice(0, 2000),
+        url: data.webpage_url || '',
+      };
+      writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+      log(`${pod.name}: metadata saved (${meta.episode_title.slice(0, 60)}...)`);
+    }
+  } catch (err) {
+    log(`${pod.name}: metadata extraction failed — ${err.message}`);
+  }
+}
+
 async function fetchTranscript(podId) {
   const pod = PODCAST_DIRECTORY[podId];
   if (!pod) {
@@ -97,6 +128,8 @@ async function fetchTranscript(podId) {
 
   if (existsSync(outputFile)) {
     log(`${pod.name}: transcript already exists for ${today}`);
+    // Still extract metadata if missing
+    await extractEpisodeMetadata(podId, pod, null);
     return true;
   }
 
@@ -135,6 +168,8 @@ async function fetchTranscript(podId) {
           writeFileSync(outputFile, cleanText);
           const wordCount = cleanText.split(/\s+/).length;
           log(`${pod.name}: transcript saved (${wordCount} words)`);
+          // Extract episode metadata alongside transcript (Phase E2)
+          await extractEpisodeMetadata(podId, pod, tmpDir);
           return true;
         }
       }
