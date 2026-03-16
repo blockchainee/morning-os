@@ -136,12 +136,163 @@ async function gmailSearch(query) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 8000); // Limit to 8000 chars
+    .slice(0, 25000); // Limit to 25KB
 
   const subject = msg.payload.headers?.find(h => h.name === 'Subject')?.value || '';
   const date    = msg.payload.headers?.find(h => h.name === 'Date')?.value || '';
 
   return { subject, date, body: cleanBody };
+}
+
+// ── Gmail Auto-Discovery ─────────────────────────────────────
+async function discoverNewsletters() {
+  if (!GOOGLE_ENABLED) {
+    log('[Discovery] Skipped — Google OAuth not configured');
+    return [];
+  }
+  const token = await getGoogleAccessToken();
+
+  // Domain classification keywords
+  const D_KEYWORDS = {
+    D1: /ai|tech|software|saas|enterprise|startup|product/i,
+    D2: /crypto|bitcoin|defi|finance|investing|markets|macro/i,
+    D3: /geopolitics|global|policy|middle.east|gulf|iran|war/i,
+    D4: /growth|habits|mindset|health|learning|philosophy/i,
+  };
+  function classifyDomain(text) {
+    for (const [domain, re] of Object.entries(D_KEYWORDS)) {
+      if (re.test(text)) return domain;
+    }
+    return 'D1';
+  }
+  function slugify(str) {
+    return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  }
+
+  try {
+    // Search two Gmail categories for newsletters from last 24h
+    const queries = [
+      'newer_than:1d category:updates',
+      'newer_than:1d category:promotions',
+    ];
+
+    const allMessageIds = [];
+    for (const q of queries) {
+      const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=30`;
+      const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+      if (!resp.ok) { log(`[Discovery] Gmail search failed for "${q}": ${resp.status}`); continue; }
+      const data = await resp.json();
+      if (data.messages) allMessageIds.push(...data.messages.map(m => m.id));
+    }
+
+    // Dedup message IDs
+    const uniqueIds = [...new Set(allMessageIds)];
+    log(`[Discovery] Found ${uniqueIds.length} candidate messages`);
+
+    // Fetch headers for each message to check List-Unsubscribe
+    const senderMap = new Map(); // keyed by sender email domain
+    for (const msgId of uniqueIds) {
+      try {
+        const msgResp = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (!msgResp.ok) continue;
+        const msg = await msgResp.json();
+        const headers = msg.payload?.headers || [];
+        const from = headers.find(h => h.name === 'From')?.value || '';
+        const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const listUnsub = headers.find(h => h.name === 'List-Unsubscribe')?.value || '';
+
+        // Only keep messages with List-Unsubscribe header (newsletter signal)
+        if (!listUnsub) continue;
+
+        // Extract sender email and display name
+        const emailMatch = from.match(/<([^>]+)>/);
+        const senderEmail = emailMatch ? emailMatch[1] : from;
+        const senderDomain = senderEmail.split('@')[1] || senderEmail;
+        const displayName = from.replace(/<[^>]+>/, '').replace(/"/g, '').trim() || senderEmail;
+
+        // Dedup by sender email domain
+        if (senderMap.has(senderDomain)) continue;
+        senderMap.set(senderDomain, {
+          msgId,
+          sender: senderEmail,
+          name: displayName,
+          subject,
+          domain: classifyDomain(displayName + ' ' + subject),
+        });
+      } catch (err) {
+        log(`[Discovery] Error fetching message ${msgId}: ${err.message}`);
+      }
+    }
+
+    // Cap at 15 newsletters
+    const discovered = [...senderMap.values()].slice(0, 15);
+    log(`[Discovery] ${discovered.length} newsletters after List-Unsubscribe filter`);
+
+    // Fetch full body for each discovered newsletter
+    const results = [];
+    for (const nl of discovered) {
+      try {
+        const msgResp = await fetch(
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${nl.msgId}?format=full`,
+          { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (!msgResp.ok) continue;
+        const msg = await msgResp.json();
+
+        function extractBody(payload) {
+          if (!payload) return '';
+          if (payload.body && payload.body.data) {
+            return Buffer.from(payload.body.data, 'base64').toString('utf8');
+          }
+          if (payload.parts) {
+            for (const part of payload.parts) {
+              if (part.mimeType === 'text/plain' || part.mimeType === 'text/html') {
+                const text = extractBody(part);
+                if (text) return text;
+              }
+            }
+            for (const part of payload.parts) {
+              const text = extractBody(part);
+              if (text) return text;
+            }
+          }
+          return '';
+        }
+
+        const rawBody = extractBody(msg.payload);
+        const cleanBody = rawBody
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 25000);
+
+        const date = msg.payload.headers?.find(h => h.name === 'Date')?.value || '';
+
+        results.push({
+          id: slugify(nl.name),
+          name: nl.name,
+          sender: nl.sender,
+          subject: nl.subject,
+          body: cleanBody,
+          domain: nl.domain,
+          date,
+        });
+      } catch (err) {
+        log(`[Discovery] Error fetching body for ${nl.name}: ${err.message}`);
+      }
+    }
+
+    log(`[Discovery] Returning ${results.length} newsletters with bodies`);
+    return results;
+  } catch (err) {
+    log(`[Discovery] Fatal error: ${err.message}`);
+    return [];
+  }
 }
 
 // ── Google Calendar API ───────────────────────────────────────
@@ -204,15 +355,37 @@ function todayISODate() {
   return dubaiNow().toISOString().slice(0,10);
 }
 
+// ── Knowledge Files ───────────────────────────────────────────
+function loadKnowledge() {
+  const userProfile = existsSync(join(ROOT, 'knowledge/user-profile.md'))
+    ? readFileSync(join(ROOT, 'knowledge/user-profile.md'), 'utf8')
+    : '';
+  const domains = existsSync(join(ROOT, 'knowledge/domains.md'))
+    ? readFileSync(join(ROOT, 'knowledge/domains.md'), 'utf8')
+    : '';
+  return { userProfile, domains };
+}
+
+const KNOWLEDGE = loadKnowledge();
+
 // ── Claude API ────────────────────────────────────────────────
 const USER_PROFILE = process.env.USER_PROFILE || 'the user';
 const USER_NAME = process.env.USER_NAME || 'User';
 const USER_CITY = process.env.USER_CITY || 'Dubai';
 const USER_TIMEZONE = process.env.USER_TIMEZONE || 'Asia/Dubai';
 const BASE_SYSTEM = `You are ${USER_NAME}'s personal intelligence officer.
-${USER_PROFILE}
-Domains: D1=Professional/AI/FDE, D2=Wealth/Crypto/DeFi, D3=Geopolitics/Gulf, D4=Personal growth/Habitus.
-Be direct, sharp, substantive. Preserve ALL specific data verbatim. Return ONLY valid JSON, no preamble, no fences.`;
+
+## User Profile
+${KNOWLEDGE.userProfile}
+
+## Domain Signal Guide
+${KNOWLEDGE.domains}
+
+## Output Rules
+- Be direct, sharp, and substantive. No filler phrases.
+- Preserve ALL specific data verbatim: numbers, names, dates, percentages.
+- Every insight must connect to at least one of D1-D4.
+- Return ONLY valid JSON. No preamble. No markdown fences.`;
 
 async function claudeCall(userContent, maxTokens = 2000) {
   const body = {
@@ -332,41 +505,70 @@ async function fetchNewsletter(nl) {
   }
   log(`Fetching newsletter: ${nl.name}...`);
   try {
-    const email = await gmailSearch(nl.query);
-    if (!email) {
-      log(`${nl.name}: no recent edition found`);
-      return { id: nl.id, has_new_edition: false };
+    // Auto-discovered newsletters already have body/subject/date
+    // Fallback (hardcoded) newsletters need Gmail search
+    let emailBody, emailSubject, emailDate, emailSender;
+    if (nl.body) {
+      emailBody = nl.body;
+      emailSubject = nl.subject || '';
+      emailDate = nl.date || '';
+      emailSender = nl.sender || '';
+    } else {
+      const email = await gmailSearch(nl.query);
+      if (!email) {
+        log(`${nl.name}: no recent edition found`);
+        return { id: nl.id, has_new_edition: false };
+      }
+      emailBody = email.body;
+      emailSubject = email.subject;
+      emailDate = email.date;
+      emailSender = nl.sender || '';
     }
 
-    log(`${nl.name}: found "${email.subject}" — processing with Claude...`);
+    log(`${nl.name}: found "${emailSubject}" — processing with Claude...`);
     const result = await claudeCall(
-      `Process this newsletter email for ${USER_NAME}.
+      `Analyze this newsletter edition for ${USER_NAME}.
 
-Newsletter: ${nl.name}
-Subject: ${email.subject}
-Date: ${email.date}
+NEWSLETTER: ${nl.name}
+SENDER: ${emailSender}
+SUBJECT: ${emailSubject}
+DATE: ${emailDate}
 
 CONTENT:
-${email.body}
+${emailBody}
 
-Return JSON:
+Return a JSON object with this exact structure:
 {
-  "id":"${nl.id}","has_new_edition":true,"date":"${email.date.slice(0,10)}","domain":"${nl.domain}",
-  "layer1":{
-    "summary":"One sentence: what happened and why it matters to ${USER_NAME}",
-    "signals":["signal with number","signal 2","signal 3"],
-    "relevance":"Direct connection to ${USER_NAME}'s work/crypto/geopolitics/growth",
-    "triage_suggestion":"act|save|share|noted"
+  "id": "${nl.id}",
+  "name": "${nl.name}",
+  "has_new_edition": true,
+  "domain": "${nl.domain}",
+  "layer1": {
+    "summary": "2-3 sentences. What happened. Most important fact first.",
+    "signals": [
+      { "text": "Specific signal in one sentence with data if available", "domain": "D1|D2|D3|D4", "strength": "high|medium|low" }
+    ],
+    "relevance": "One sentence: why this edition matters for ${USER_NAME}'s specific domains.",
+    "triage_suggestion": "Read|Skim|Skip",
+    "triage_reason": "One sentence justifying the triage call."
   },
-  "layer2":{
-    "framing":"Author's main argument, 2-3 sentences",
-    "stories":[{"title":"Headline","content":"3-5 sentences, ALL numbers/names preserved verbatim"}],
-    "data_points":["every specific number, %, name, date from the email"],
-    "notable_quotes":["one sharp verbatim quote if present"],
-    "implications_for_patrik":["D1: specific","D2: specific"],
-    "reflection_question":"Sharp question challenging ${USER_NAME}'s existing view"
+  "layer2": {
+    "framing": "How does this newsletter frame the story? What lens are they using?",
+    "stories": [
+      { "headline": "Story headline", "content": "Full story detail with all numbers preserved verbatim" }
+    ],
+    "data_points": ["Every specific number, percentage, date, or named entity from the edition"],
+    "implications": "2-3 sentences: concrete implications for ${USER_NAME}'s work, portfolio, or context.",
+    "questions": ["1-2 sharp questions this edition raises that ${USER_NAME} should think about"],
+    "reflection": "One genuinely useful question for ${USER_NAME} to reflect on — not generic."
   }
-}`, 2500);
+}
+
+Rules:
+- signals array: minimum 2, maximum 5. Only include genuinely signal-worthy items.
+- data_points: extract EVERY number, stat, or named entity. Never paraphrase numbers.
+- stories: include all major stories from the edition, not just one.
+- If no new content (e.g. weekend digest, repeated content), set has_new_edition: false and return minimal layer1 only.`, 2500);
     log(`${nl.name}: processed successfully`);
     return result;
   } catch (err) {
@@ -564,6 +766,18 @@ function buildNotionBlocks(briefing) {
   return blocks;
 }
 
+async function withRetry(fn, maxAttempts = 3, delayMs = 2000) {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === maxAttempts) throw err;
+      log(`[Retry] Attempt ${attempt} failed: ${err.message}. Retrying in ${delayMs * attempt}ms...`);
+      await new Promise(r => setTimeout(r, delayMs * attempt));
+    }
+  }
+}
+
 async function writeToNotion(briefing) {
   log('Writing to Notion...');
 
@@ -660,14 +874,29 @@ async function main() {
   const t0 = Date.now();
   log(`=== Morning OS v2 Started — ${dubaiDateStr()} ===`);
 
-  const activeNewsletters = (process.env.ACTIVE_NEWSLETTERS||'a16z,bankless,pomp,tldr,semafor,intrigue,lenny,chamath,timeout')
-    .split(',').map(s=>s.trim()).filter(Boolean)
-    .map(id => ALL_NEWSLETTERS.find(n=>n.id===id)).filter(Boolean);
+  // Gmail auto-discovery with fallback to hardcoded list
+  let activeNewsletters;
+  let discoveryMode = 'fallback';
+  try {
+    const discovered = await discoverNewsletters();
+    if (discovered.length > 0) {
+      activeNewsletters = discovered;
+      discoveryMode = 'auto';
+      log(`[Discovery] Using auto-discovery mode: ${discovered.length} newsletters`);
+    } else {
+      throw new Error('No newsletters discovered');
+    }
+  } catch (err) {
+    log(`[Discovery] Falling back to hardcoded list: ${err.message}`);
+    activeNewsletters = (process.env.ACTIVE_NEWSLETTERS||'a16z,bankless,pomp,tldr,semafor,intrigue,lenny,chamath,timeout')
+      .split(',').map(s=>s.trim()).filter(Boolean)
+      .map(id => ALL_NEWSLETTERS.find(n=>n.id===id)).filter(Boolean);
+  }
 
   const activePodcasts = (process.env.ACTIVE_PODCASTS||'')
     .split(',').map(s=>s.trim()).filter(Boolean);
 
-  log(`Newsletters: ${activeNewsletters.map(n=>n.name).join(', ')}`);
+  log(`Newsletters (${discoveryMode}): ${activeNewsletters.map(n=>n.name).join(', ')}`);
 
   // Parallel fetches
   const [calResult, growthResult, ...nlResults] = await Promise.allSettled([
@@ -688,22 +917,29 @@ async function main() {
   }
 
   const calData = calResult.status==='fulfilled' ? calResult.value : {};
+  const nlProcessed = nlResults.map((r,i) =>
+    r.status==='fulfilled' ? r.value : { id: activeNewsletters[i].id, has_new_edition:false }
+  );
   const briefing = {
+    _meta: {
+      generated_at: new Date().toISOString(),
+      newsletter_count: nlProcessed.filter(n => n.has_new_edition).length,
+      discovery_mode: discoveryMode,
+      version: '2.0',
+    },
     generated_at: new Date().toISOString(),
     calendar:  calData.today ? { today: calData.today, focus_window: calData.focus_window } : null,
     birthdays: calData.birthdays || [],
     growth:    growthResult.status==='fulfilled' ? growthResult.value : null,
-    newsletters: nlResults.map((r,i) =>
-      r.status==='fulfilled' ? r.value : { id: activeNewsletters[i].id, has_new_edition:false }
-    ),
+    newsletters: nlProcessed,
     podcasts,
   };
 
   try {
-    const url = await writeToNotion(briefing);
+    const url = await withRetry(() => writeToNotion(briefing));
     log(`✅ Notion page: ${url}`);
   } catch(err) {
-    log(`Notion FAILED: ${err.message}`);
+    log(`Notion FAILED (after retries): ${err.message}`);
   }
 
   // Always write static briefing.json for the frontend app (avoids CORS issues with Notion API)
