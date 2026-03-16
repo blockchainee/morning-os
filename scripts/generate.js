@@ -683,8 +683,12 @@ async function main() {
     log(`✅ Notion page: ${url}`);
   } catch(err) {
     log(`Notion FAILED: ${err.message}`);
-    writeFileSync(join(ROOT,'briefing-fallback.json'), JSON.stringify(briefing,null,2));
   }
+
+  // Always write static briefing.json for the frontend app (avoids CORS issues with Notion API)
+  const staticPath = join(ROOT, 'briefing.json');
+  writeFileSync(staticPath, JSON.stringify(briefing, null, 2));
+  log(`Static briefing written to ${staticPath}`);
 
   const nlSuccess = briefing.newsletters.filter(n=>n.has_new_edition).length;
   log(`=== Done in ${((Date.now()-t0)/1000).toFixed(1)}s · ${nlSuccess}/${activeNewsletters.length} newsletters · ${podcasts.length} podcasts ===`);
