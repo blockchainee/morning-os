@@ -197,6 +197,10 @@ html, body {
   transition: border-color .15s;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
 }
+.card, .newsletter-card, .podcast-card, .grow-card {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
 .card:active { border-color: var(--border2); }
 
 /* ── CALENDAR CARD ──────────────────────────────────────────── */
@@ -343,7 +347,7 @@ html, body {
   overflow: hidden;
   transition: max-height .35s cubic-bezier(.4,0,.2,1);
 }
-.layer2-panel.open { max-height: 900px; }
+.layer2-panel.open { max-height: none; }
 .layer2-inner { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
 
 .l2-block { display: flex; flex-direction: column; gap: 3px; }
@@ -447,7 +451,7 @@ html, body {
   overflow: hidden;
   transition: max-height .35s cubic-bezier(.4,0,.2,1);
 }
-.pl2-panel.open { max-height: 1200px; }
+.pl2-panel.open { max-height: none; }
 .pl2-inner { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; }
 
 .pl2-section { display: flex; flex-direction: column; gap: 5px; }
@@ -685,6 +689,15 @@ html, body {
 }
 .card-enter { animation: fadeSlideIn .3s ease forwards; }
 
+/* ── TOAST NOTIFICATION ────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+  background: #1a1a1a; color: #fff; padding: 10px 20px; border-radius: 20px;
+  font-size: 14px; opacity: 0; transition: opacity 0.3s; z-index: 9999;
+  pointer-events: none;
+}
+.toast.visible { opacity: 1; }
+
 /* ── LOADING SKELETON ───────────────────────────────────────── */
 .skeleton {
   background: var(--bg3);
@@ -825,6 +838,27 @@ const STATE = {
     { id:'tim',          name:'The Tim Ferriss Show',   on:false },
   ],
 };
+
+// ═══════════════════════════════════════════════════════════════
+// TOAST NOTIFICATION
+// ═══════════════════════════════════════════════════════════════
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('visible'), 10);
+  setTimeout(() => { toast.classList.remove('visible'); setTimeout(() => toast.remove(), 300); }, 2500);
+}
+
+function removeSavedItem(index) {
+  STATE.savedItems.splice(index, 1);
+  localStorage.setItem('pig_os_saved', JSON.stringify(STATE.savedItems));
+  const content = document.getElementById('content');
+  content.innerHTML = '';
+  renderSaved(content);
+  showToast('Removed');
+}
 
 // ═══════════════════════════════════════════════════════════════
 // PERSISTENCE
@@ -1140,6 +1174,7 @@ function renderNewsletterCard(nl, data) {
     e.currentTarget.textContent = 'Saved ✓';
     e.currentTarget.style.background = 'var(--accent)';
     e.currentTarget.style.color = '#fff';
+    showToast('Saved ✓');
   });
 
   l2panel.querySelector('.act-deeper').addEventListener('click', (e) => {
@@ -1289,6 +1324,7 @@ function renderPodcastCard(pod) {
     STATE.savedItems.unshift({ type:'thesis', source: e.currentTarget.dataset.source, text: e.currentTarget.dataset.text, date: todayStr() });
     save();
     e.currentTarget.textContent = 'Saved ✓';
+    showToast('Saved ✓');
   });
 
   pl2.querySelector('.act-deeper').addEventListener('click', () => {
@@ -1317,14 +1353,14 @@ function renderGrow(el) {
   }
 
   // Small Talk Bridge
-  if (g.small_talk) {
+  if (g.small_talk_bridge) {
     const c = document.createElement('div');
     c.className = 'grow-card card-enter';
     c.innerHTML = `<div class="grow-lbl">Small Talk Bridge</div>
       <div class="grow-body">
-        <strong style="color:var(--text2);font-size:11px">Hook: ${esc(g.small_talk.topic_hook)}</strong><br>
-        Bridge: <em>"${esc(g.small_talk.bridge)}"</em>
-        ${g.small_talk.when_to_use ? `<div style="margin-top:5px;font-size:11px;color:var(--text3)">When: ${esc(g.small_talk.when_to_use)}</div>` : ''}
+        <strong style="color:var(--text2);font-size:11px">Hook: ${esc(g.small_talk_bridge.topic_hook)}</strong><br>
+        Bridge: <em>"${esc(g.small_talk_bridge.bridge)}"</em>
+        ${g.small_talk_bridge.when_to_use ? `<div style="margin-top:5px;font-size:11px;color:var(--text3)">When: ${esc(g.small_talk_bridge.when_to_use)}</div>` : ''}
       </div>`;
     el.appendChild(c);
   }
@@ -1380,12 +1416,14 @@ function renderSaved(el) {
     el.appendChild(empty);
     return;
   }
-  STATE.savedItems.forEach(item => {
+  STATE.savedItems.forEach((item, index) => {
     const d = document.createElement('div');
     d.className = 'saved-item card card-enter';
+    d.style.position = 'relative';
     d.innerHTML = `<div class="saved-source">${esc(item.source)}</div>
       <div class="saved-text">${esc(item.text)}</div>
-      <div class="saved-date">${esc(item.date)}</div>`;
+      <div class="saved-date">${esc(item.date)}</div>
+      <button class="remove-saved" onclick="removeSavedItem(${index})" aria-label="Remove" style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:16px;color:var(--text3);cursor:pointer;padding:2px 6px;">✕</button>`;
     el.appendChild(d);
   });
 }
