@@ -1055,8 +1055,22 @@ async function main() {
       .map(id => ALL_NEWSLETTERS.find(n=>n.id===id)).filter(Boolean);
   }
 
-  const activePodcasts = (process.env.ACTIVE_PODCASTS||'')
-    .split(',').map(s=>s.trim()).filter(Boolean);
+  // Load active podcasts from config.json (PWA settings) or env var fallback
+  let activePodcasts = [];
+  const configPath = join(ROOT, 'config.json');
+  if (existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
+      if (Array.isArray(cfg.active_podcasts) && cfg.active_podcasts.length > 0) {
+        activePodcasts = cfg.active_podcasts;
+        log(`Loaded ${activePodcasts.length} podcasts from config.json`);
+      }
+    } catch (e) { log(`config.json parse error: ${e.message}`); }
+  }
+  if (!activePodcasts.length) {
+    activePodcasts = (process.env.ACTIVE_PODCASTS||'')
+      .split(',').map(s=>s.trim()).filter(Boolean);
+  }
 
   log(`Newsletters (${discoveryMode}): ${activeNewsletters.map(n=>n.name).join(', ')}`);
 

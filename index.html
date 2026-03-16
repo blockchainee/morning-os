@@ -1848,8 +1848,63 @@ document.addEventListener('DOMContentLoaded', () => {
   if (searchEl) searchEl.addEventListener('input', e => searchITunes(e.target.value));
 });
 
+// ── Podcast config sync to repo via Netlify function ──────────
+async function syncPodcastConfig() {
+  // Collect active podcast IDs — both directory and iTunes-added ones
+  const activeIds = STATE.podcasts.filter(p => p.on).map(p => p.id);
+  if (!activeIds.length) return; // don't save empty config
+  try {
+    const resp = await fetch('/.netlify/functions/save-podcasts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active_podcasts: activeIds }),
+    });
+    if (resp.ok) {
+      showToast('Podcast config saved to cloud');
+    } else {
+      const err = await resp.json().catch(() => ({}));
+      console.warn('Podcast sync failed:', err.error || resp.status);
+      showToast('Podcast config saved locally (cloud sync failed)');
+    }
+  } catch (e) {
+    console.warn('Podcast sync error:', e);
+    showToast('Podcast config saved locally');
+  }
+}
+
+// ── Load config.json on startup to sync podcast selections ────
+async function loadRemoteConfig() {
+  try {
+    const resp = await fetch('config.json?t=' + Date.now());
+    if (!resp.ok) return;
+    const cfg = await resp.json();
+    if (!Array.isArray(cfg.active_podcasts) || !cfg.active_podcasts.length) return;
+
+    // Merge remote config into STATE.podcasts
+    const localPodIds = new Set(STATE.podcasts.map(p => p.id));
+    for (const id of cfg.active_podcasts) {
+      if (localPodIds.has(id)) {
+        // Activate if already in local state
+        const pod = STATE.podcasts.find(p => p.id === id);
+        if (pod) pod.on = true;
+      } else {
+        // Check directory for known podcast
+        const dirPod = PODCAST_DIRECTORY.find(p => p.id === id);
+        if (dirPod) {
+          STATE.podcasts.push({ id: dirPod.id, name: dirPod.name, on: true });
+        } else {
+          // Unknown podcast (e.g. itunes-added on another device)
+          STATE.podcasts.push({ id, name: id, on: true });
+        }
+      }
+    }
+    save();
+  } catch (e) { console.warn('Remote config load error:', e); }
+}
+
 document.getElementById('save-settings-btn').addEventListener('click', () => {
   save();
+  syncPodcastConfig(); // async — fire and forget
   closeSettings();
   renderTab();
 });
@@ -1939,6 +1994,9 @@ renderTab();
 
 // Auto-load briefing from static JSON on startup
 loadBriefing();
+
+// Sync podcast config from repo (merges remote selections into local state)
+loadRemoteConfig();
 
 // ═══════════════════════════════════════════════════════════════
 // INTELLIGENCE CHAT

@@ -186,9 +186,28 @@ async function fetchTranscript(podId) {
   }
 }
 
+// ── Load config ─────────────────────────────────────────────────
+function loadActivePodcasts() {
+  // 1. Try config.json (set by the PWA settings UI)
+  const configPath = join(ROOT, 'config.json');
+  if (existsSync(configPath)) {
+    try {
+      const cfg = JSON.parse(readFileSync(configPath, 'utf8'));
+      if (Array.isArray(cfg.active_podcasts) && cfg.active_podcasts.length > 0) {
+        log(`Loaded ${cfg.active_podcasts.length} podcasts from config.json`);
+        return cfg.active_podcasts;
+      }
+    } catch (e) { log(`config.json parse error: ${e.message}`); }
+  }
+  // 2. Fallback to env var
+  const fromEnv = (process.env.ACTIVE_PODCASTS || '')
+    .split(',').map(s => s.trim()).filter(Boolean);
+  if (fromEnv.length) log(`Loaded ${fromEnv.length} podcasts from ACTIVE_PODCASTS env var`);
+  return fromEnv;
+}
+
 // ── Main ───────────────────────────────────────────────────────
-const activePodcasts = (process.env.ACTIVE_PODCASTS || '')
-  .split(',').map(s => s.trim()).filter(Boolean);
+const activePodcasts = loadActivePodcasts();
 
 if (!activePodcasts.length) {
   log('No active podcasts configured — skipping transcript fetch');
