@@ -86,7 +86,14 @@ async function main() {
     podcasts: (b.podcasts || []).map(p => ({
       name: p.name,
       episode: p.episode_title,
-      summary: p.digest?.summary,
+      domain_tags: p.layer1?.domain_tags,
+      summary: p.layer1?.summary || p.digest?.summary,
+      key_statements: p.layer1?.key_statements,
+      hypotheses: p.layer2?.hypotheses,
+      domain_connections: p.layer2?.domain_connections,
+      signal_strength: p.layer1?.signal_strength,
+      recommendations: p.recommendations,
+      // Fallback for old format
       insights: p.digest?.insights,
     })),
     calendar: b.calendar || [],
@@ -160,12 +167,29 @@ Return a JSON object with this exact structure:
   "one_conviction": "The single most important thing ${USER_NAME} should update their worldview about based on this week's signals. Be bold. Don't hedge."
 }
 
+Podcast episodes this week are included above. For each:
+- Include high-signal podcast insights in the signal_tracker if they appeared across multiple sources
+- Include bold hypotheses from podcasts in the weekly synthesis if they connect to user domains
+- Aggregate recommendations across all podcast episodes into a "week_recommendations" field
+
+Add this field to the synthesis JSON output:
+"week_recommendations": {
+  "books": [...all books mentioned across all podcasts this week, deduped],
+  "podcasts": [...],
+  "tools": [...],
+  "people": [...],
+  "articles_links": [...],
+  "music": [...]
+}
+Each item in the arrays should be an object with: { "title": "...", "mentioned_by": "podcast name", "context": "why it was mentioned" }
+
 Rules:
 - signal_tracker: minimum 3, maximum 8 topics. Only include topics that appeared 2+ times.
 - source_conflicts: only include if genuine disagreement exists. Can be empty array.
 - learning_gaps: maximum 3. Quality over quantity.
 - weekly_challenges: exactly 3. Make them uncomfortable. Vague challenges are useless.
-- one_conviction: this is the most important field. Make it sharp and specific.`;
+- one_conviction: this is the most important field. Make it sharp and specific.
+- week_recommendations: aggregate from all podcast recommendation data. Deduplicate. Can have empty arrays for categories with no mentions.`;
 
   const synthesisRaw = await claudeCall(synthesisSystem, synthesisPrompt, 4000);
   let synthesis;
@@ -323,6 +347,29 @@ async function writeWeeklyToNotion(synthesis, userModel) {
       color: 'gray_background',
     },
   });
+
+  // Week Recommendations (from podcast intelligence)
+  if (synthesis.week_recommendations) {
+    const rec = synthesis.week_recommendations;
+    const hasRecs = Object.values(rec).some(arr => arr.length > 0);
+    if (hasRecs) {
+      blocks.push({ type: 'divider', divider: {} });
+      blocks.push({ type: 'heading_2', heading_2: { rich_text: [{ type: 'text', text: { content: 'This Week\'s Recommendations' } }] } });
+      const emojiMap = { books: '📖', podcasts: '🎙', tools: '🛠', people: '👤', articles_links: '🔗', music: '🎵' };
+      for (const [category, items] of Object.entries(rec)) {
+        if (items.length === 0) continue;
+        for (const item of items) {
+          const label = item.title || item.name || '';
+          const by = item.mentioned_by ? ` (via ${item.mentioned_by})` : '';
+          const ctx = item.context ? ` — ${item.context}` : '';
+          blocks.push({
+            type: 'bulleted_list_item',
+            bulleted_list_item: { rich_text: [{ type: 'text', text: { content: `${emojiMap[category] || '•'} ${label}${by}${ctx}` } }] },
+          });
+        }
+      }
+    }
+  }
 
   // Create Notion page
   const response = await fetch('https://api.notion.com/v1/pages', {

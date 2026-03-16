@@ -1341,103 +1341,183 @@ function renderPodcastCard(pod) {
   const wrap = document.createElement('div');
   wrap.className = 'card card-enter';
 
-  const header = document.createElement('div');
-  header.className = 'pcard-header';
+  // Detect new (Phase E) vs old format
+  const isNewFormat = !!pod.layer1;
+  const l1 = pod.layer1 || {};
+  const l2 = pod.layer2 || {};
+  const speakers = pod.speakers || [];
+  const recs = pod.recommendations || {};
+  // Backward compat: old format had pod.summary, pod.digest, pod.domain
+  const summary = l1.summary || pod.summary || '';
+  const domainTags = l1.domain_tags || (pod.domain ? [pod.domain] : []);
+  const primaryDomain = domainTags[0] || '';
 
   const artLetters = pod.name.split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
-  const domainClass = { D1:'d1', D2:'d2', D3:'d3', D4:'d4' }[pod.domain] || 'd1';
-  const domainLabel = { D1:'D1 pro', D2:'D2 wealth', D3:'D3 world', D4:'D4 growth' }[pod.domain] || (pod.domain||'');
+  const domainClass = { D1:'d1', D2:'d2', D3:'d3', D4:'d4' }[primaryDomain] || 'd1';
+  const triageBadge = l1.triage || '';
+  const triageClass = triageBadge === 'Must Listen' ? 't-act' : triageBadge === 'Skip' ? 't-done' : '';
+
+  // ── Layer 1 ──
+  const header = document.createElement('div');
+  header.className = 'pcard-header';
+  header.style.cssText = 'flex-direction:column;align-items:stretch;gap:6px';
+
+  let guestLine = '';
+  if (l1.guest_in_one_line) {
+    guestLine = `<div style="font-size:12px;color:var(--accent2);margin-bottom:2px">Guest: ${esc(l1.guest_in_one_line)}</div>`;
+  }
+
+  let statementsHtml = '';
+  if (l1.key_statements && l1.key_statements.length) {
+    statementsHtml = `<div style="margin-top:6px">
+      ${l1.key_statements.map(s => `<div style="font-size:12px;color:var(--text2);padding:2px 0">• ${esc(s)}</div>`).join('')}
+    </div>`;
+  }
 
   header.innerHTML = `
-    <div class="pcard-art">${artLetters}</div>
-    <div class="pcard-meta">
-      <div class="pcard-name">${esc(pod.name)}</div>
-      <div class="pcard-ep">${esc(pod.episode || '')} · ${esc(pod.duration || '')} · ${esc(pod.date || '')}</div>
-      <div class="pcard-sum">${esc(pod.summary || '')}</div>
+    <div style="display:flex;align-items:flex-start;gap:10px">
+      <div class="pcard-art">${artLetters}</div>
+      <div style="flex:1;min-width:0">
+        <div class="pcard-name">${esc(pod.name)}</div>
+        <div class="pcard-ep">${esc(pod.episode_title || pod.episode || '')} · ${esc(pod.published_date || pod.date || '')}</div>
+      </div>
+      ${domainTags.length ? `<div style="display:flex;gap:3px;flex-shrink:0">${domainTags.map(d => `<span class="domain-badge ${({D1:'d1',D2:'d2',D3:'d3',D4:'d4'})[d]||'d1'}" style="font-size:9px">${esc(d)}</span>`).join('')}</div>` : ''}
     </div>
-    ${pod.domain ? `<span class="domain-badge ${domainClass}" style="align-self:flex-start;flex-shrink:0">${esc(domainLabel)}</span>` : ''}`;
+    ${guestLine}
+    <div class="pcard-sum">${esc(summary)}</div>
+    ${statementsHtml}`;
   wrap.appendChild(header);
 
   const footer = document.createElement('div');
   footer.className = 'pcard-footer';
   footer.innerHTML = `
-    <div class="triage-row">
-      <button class="tq ${pod.triage==='act'?'t-act':''}"  data-v="act">act</button>
-      <button class="tq ${pod.triage==='save'?'t-save':''}" data-v="save">save</button>
-      <button class="tq ${pod.triage==='done'?'t-done':''}" data-v="done">✓</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      ${triageBadge ? `<span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:${triageBadge==='Must Listen'?'var(--accent-bg)':'var(--bg3)'};color:${triageBadge==='Must Listen'?'var(--accent)':'var(--text3)'}">${esc(triageBadge)}</span>` : ''}
+      ${l1.signal_strength ? `<span style="font-size:10px;color:var(--text3)">${esc(l1.signal_strength)}</span>` : ''}
     </div>
-    <button class="p-deep-btn">full digest →</button>`;
+    <button class="p-deep-btn">Deep Dive ↓</button>`;
   wrap.appendChild(footer);
 
-  // Podcast Layer 2
+  // ── Layer 2 ──
   const pl2 = document.createElement('div');
   pl2.className = 'pl2-panel';
-  const d = pod.digest || {};
 
-  let insightsHtml = '';
-  if (d.insights && d.insights.length) {
-    insightsHtml = d.insights.map(section => `
-      <div class="pl2-topic-tag">${esc(section.topic)}</div>
-      ${section.points.map(p => `<div class="pl2-insight">${esc(p)}</div>`).join('')}
-    `).join('<div style="height:6px"></div>');
+  // Speakers section
+  let speakersHtml = '';
+  if (speakers.length) {
+    speakersHtml = `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Speakers</div>
+      ${speakers.map(s => `<div style="font-size:12px;margin-bottom:4px">
+        <strong>${esc(s.name)}</strong> <span style="color:var(--text3)">(${esc(s.role)})</span>
+        ${s.role === 'guest' && s.profile ? `<div style="font-size:11px;color:var(--text2);margin-top:2px">${esc(s.profile)}</div>` : ''}
+      </div>`).join('')}
+    </div>`;
   }
 
-  let quotesHtml = '';
-  if (d.quotes && d.quotes.length) {
-    quotesHtml = d.quotes.map(q => `
-      <div class="pl2-quote">
-        <div class="pl2-quote-text">${esc(q.text)}</div>
-        ${q.speaker ? `<div class="pl2-quote-attr">— ${esc(q.speaker)}</div>` : ''}
-      </div>`).join('');
+  // Topics (collapsible)
+  let topicsHtml = '';
+  if (l2.topics && l2.topics.length) {
+    topicsHtml = `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Topics</div>
+      ${l2.topics.map((t, idx) => `<div class="pod-topic-group">
+        <div class="pod-topic-title" onclick="this.parentElement.classList.toggle('expanded')" style="cursor:pointer;font-size:12px;font-weight:600;color:var(--text);padding:4px 0;display:flex;justify-content:space-between;align-items:center">
+          ${esc(t.title)} <span style="font-size:10px;color:var(--text3)">▸</span>
+        </div>
+        <div class="pod-topic-detail" style="display:none;padding-left:8px;margin-bottom:8px">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:4px">${esc(t.summary || '')}</div>
+          ${(t.insights||[]).map(i => `<div style="font-size:11px;color:var(--text2);padding:1px 0">• ${esc(i)}</div>`).join('')}
+          ${(t.quotes||[]).map(q => `<div style="margin-top:4px;padding:6px 8px;background:var(--bg3);border-radius:var(--r-sm);border-left:2px solid var(--accent2)">
+            <div style="font-size:11px;font-style:italic;color:var(--text)">"${esc(q.text)}"</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px">— ${esc(q.speaker)}${q.context ? ` · ${esc(q.context)}` : ''}</div>
+          </div>`).join('')}
+        </div>
+      </div>`).join('')}
+    </div>`;
   }
 
+  // Hypotheses
+  let hypothesesHtml = '';
+  if (l2.hypotheses && l2.hypotheses.length) {
+    hypothesesHtml = `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Hypotheses</div>
+      ${l2.hypotheses.map(h => `<div style="padding:6px 8px;margin-bottom:4px;border-left:3px solid var(--amber);background:var(--amber-bg);border-radius:0 var(--r-sm) var(--r-sm) 0">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">⚡ ${esc(h.statement)}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">— ${esc(h.speaker)} · ${esc(h.domain||'')}</div>
+        ${h.evidence ? `<div style="font-size:11px;color:var(--text3);margin-top:2px">Evidence: ${esc(h.evidence)}</div>` : ''}
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // Domain connections
+  let domConnHtml = '';
+  if (l2.domain_connections) {
+    const entries = Object.entries(l2.domain_connections).filter(([k,v]) => v && v.trim());
+    if (entries.length) {
+      domConnHtml = `<div class="pl2-section">
+        <div class="pl2-sec-lbl">Domain Connections</div>
+        ${entries.map(([d,v]) => `<div style="font-size:11px;margin-bottom:3px"><strong style="color:var(--accent)">${esc(d)}:</strong> ${esc(v)}</div>`).join('')}
+      </div>`;
+    }
+  }
+
+  // Recommendations
   let recsHtml = '';
-  if (d.recommendations && d.recommendations.length) {
-    recsHtml = d.recommendations.map(r => `
-      <div class="pl2-rec-item">
-        <span class="rec-type rt-${r.type||'source'}">${esc(r.type||'source')}</span>
-        <div class="rec-text"><strong>${esc(r.name)}</strong>${r.note ? ` — ${esc(r.note)}` : ''}</div>
-      </div>`).join('');
+  const emojiMap = { books:'📚', podcasts:'🎙', tools:'🛠', people:'👤', articles_links:'🔗', music:'🎵' };
+  const recEntries = Object.entries(recs).filter(([k,v]) => Array.isArray(v) && v.length > 0 && v.some(item => (item.title||item.name||'').trim()));
+  if (recEntries.length) {
+    recsHtml = `<div class="pl2-section">
+      <div class="pl2-sec-lbl">Recommendations</div>
+      ${recEntries.map(([cat, items]) => items.filter(item => (item.title||item.name||'').trim()).map(item => `
+        <div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:4px;font-size:11px">
+          <span>${emojiMap[cat]||'•'}</span>
+          <div style="flex:1">
+            <strong>${esc(item.title||item.name)}</strong>${item.author ? ` by ${esc(item.author)}` : ''}${item.mentioned_by ? ` <span style="color:var(--text3)">(via ${esc(item.mentioned_by)})</span>` : ''}
+            ${item.context ? `<div style="color:var(--text3)">${esc(item.context)}</div>` : ''}
+          </div>
+          <button class="pod-save-rec" data-cat="${esc(cat)}" data-name="${esc(item.title||item.name)}" data-source="${esc(pod.name)}" style="background:none;border:1px solid var(--border);border-radius:6px;padding:2px 6px;font-size:10px;color:var(--accent);cursor:pointer;flex-shrink:0">Save ✦</button>
+        </div>`).join('')).join('')}
+    </div>`;
+  }
+
+  // Reflection
+  let reflectionHtml = '';
+  if (l2.reflection) {
+    reflectionHtml = `<div style="padding:8px 10px;background:var(--accent2-bg);border-radius:var(--r-sm);font-size:12px;color:var(--accent2);font-style:italic">${esc(l2.reflection)}</div>`;
+  }
+
+  // Backward compat: old format fallback
+  let oldFormatHtml = '';
+  if (!isNewFormat && pod.digest) {
+    const d = pod.digest;
+    if (d.insights && d.insights.length) {
+      oldFormatHtml += d.insights.map(section => `
+        <div class="pl2-topic-tag">${esc(section.topic)}</div>
+        ${section.points.map(p => `<div class="pl2-insight">${esc(p)}</div>`).join('')}
+      `).join('<div style="height:6px"></div>');
+    }
+    if (d.quotes && d.quotes.length) {
+      oldFormatHtml += `<div class="pl2-sec-lbl" style="margin-top:8px">Quotes</div>` +
+        d.quotes.map(q => `<div class="pl2-quote"><div class="pl2-quote-text">${esc(q.text)}</div>${q.speaker?`<div class="pl2-quote-attr">— ${esc(q.speaker)}</div>`:''}</div>`).join('');
+    }
   }
 
   pl2.innerHTML = `<div class="pl2-inner">
-    ${insightsHtml ? `<div class="pl2-section">
-      <div class="pl2-sec-lbl">Key insights by topic</div>
-      ${insightsHtml}
-    </div>` : ''}
-    ${quotesHtml ? `<div class="pl2-section">
-      <div class="pl2-sec-lbl">Best quotes</div>
-      ${quotesHtml}
-    </div>` : ''}
-    ${recsHtml ? `<div class="pl2-section">
-      <div class="pl2-sec-lbl">Recommendations</div>
-      ${recsHtml}
-    </div>` : ''}
-    <div class="l2-actions">
+    ${isNewFormat ? `${speakersHtml}${topicsHtml}${hypothesesHtml}${domConnHtml}${recsHtml}${reflectionHtml}` : oldFormatHtml}
+    <div class="l2-actions" style="margin-top:8px">
       <button class="l2-action act-thesis" style="background:var(--blue-bg);color:var(--blue)"
-        data-source="${esc(pod.name)}" data-text="${esc(pod.summary||'')}">Save to thesis</button>
+        data-source="${esc(pod.name)}" data-text="${esc(summary)}">Save to thesis</button>
       <button class="l2-action act-deeper" style="background:var(--accent2-bg);color:var(--accent2)"
-        data-context="${encodeURIComponent(JSON.stringify(d))}">Go deeper →</button>
+        data-context="${encodeURIComponent(JSON.stringify(isNewFormat ? l2 : (pod.digest||{})))}">Go deeper →</button>
     </div>
     <button class="ask-claude-btn" onclick="openIntelligenceChat('${esc(pod.id)}', 'podcast')">Ask Claude →</button>
   </div>`;
   wrap.appendChild(pl2);
 
+  // ── Event listeners ──
   footer.querySelector('.p-deep-btn').addEventListener('click', () => {
     pl2.classList.toggle('open');
     footer.querySelector('.p-deep-btn').textContent =
-      pl2.classList.contains('open') ? 'collapse ↑' : 'full digest →';
-  });
-
-  footer.querySelector('.triage-row').addEventListener('click', (e) => {
-    const btn = e.target.closest('.tq');
-    if (!btn) return;
-    pod.triage = pod.triage === btn.dataset.v ? null : btn.dataset.v;
-    save();
-    footer.querySelectorAll('.tq').forEach(b => {
-      b.className = 'tq';
-      if (b.dataset.v === pod.triage) b.classList.add({act:'t-act',save:'t-save',done:'t-done'}[pod.triage]||'');
-    });
+      pl2.classList.contains('open') ? 'collapse ↑' : 'Deep Dive ↓';
   });
 
   pl2.querySelector('.act-thesis').addEventListener('click', (e) => {
@@ -1448,8 +1528,35 @@ function renderPodcastCard(pod) {
   });
 
   pl2.querySelector('.act-deeper').addEventListener('click', () => {
-    const prompt = `I want to explore this podcast digest more deeply:\n\n${pod.name}\n\n${pod.summary || ''}`;
+    const ctx = isNewFormat ? l2 : (pod.digest||{});
+    const prompt = `I want to explore this podcast digest more deeply:\n\n${pod.name}\n\n${summary}`;
     window.open(`https://claude.ai/new?q=${encodeURIComponent(prompt)}`, '_blank');
+  });
+
+  // Save recommendation buttons
+  pl2.querySelectorAll('.pod-save-rec').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const name = e.currentTarget.dataset.name;
+      const cat = e.currentTarget.dataset.cat;
+      const source = e.currentTarget.dataset.source;
+      STATE.savedItems.unshift({ type: cat, source, text: name, date: todayStr() });
+      save();
+      e.currentTarget.textContent = '✓';
+      showToast('Saved ✦');
+    });
+  });
+
+  // Topic expand/collapse
+  pl2.querySelectorAll('.pod-topic-group').forEach(group => {
+    const title = group.querySelector('.pod-topic-title');
+    const detail = group.querySelector('.pod-topic-detail');
+    if (title && detail) {
+      title.addEventListener('click', () => {
+        const isOpen = detail.style.display !== 'none';
+        detail.style.display = isOpen ? 'none' : 'block';
+        title.querySelector('span').textContent = isOpen ? '▸' : '▾';
+      });
+    }
   });
 
   return wrap;
