@@ -854,7 +854,7 @@ function showToast(message) {
 function removeSavedItem(index) {
   STATE.savedItems.splice(index, 1);
   localStorage.setItem('pig_os_saved', JSON.stringify(STATE.savedItems));
-  const content = document.getElementById('content');
+  const content = document.getElementById('tab-content');
   content.innerHTML = '';
   renderSaved(content);
   showToast('Removed');
@@ -1088,7 +1088,7 @@ function renderNewsletterCard(nl, data) {
       <span class="domain-badge ${domainClass}">${esc(domainLabel)}</span>
     </div>
     <div class="ncard-summary">${esc(l1.summary)}</div>
-    <div class="signal-row">${(l1.signals||[]).map(s=>`<span class="sig-chip">${esc(s)}</span>`).join('')}</div>
+    <div class="signal-row">${(l1.signals||[]).map(s=>`<span class="sig-chip">${esc(typeof s === 'object' ? s.text : s)}</span>`).join('')}</div>
     <div class="ncard-footer">
       <div class="triage-row" data-id="${nl.id}">
         <button class="tq ${data.triage==='act'?'t-act':''}"   data-v="act">act</button>
@@ -1115,7 +1115,7 @@ function renderNewsletterCard(nl, data) {
       <div class="l2-lbl">Key stories</div>
       ${(l2.stories||[]).map(s=>`
         <div style="margin-bottom:6px">
-          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${esc(s.title)}</div>
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:2px">${esc(s.headline || s.title)}</div>
           <div class="l2-text">${esc(s.content)}</div>
         </div>`).join('')}
     </div>
@@ -1132,10 +1132,14 @@ function renderNewsletterCard(nl, data) {
     </div>` : ''}
     <div class="l2-div"></div>
     <div class="l2-block">
-      <div class="l2-lbl">Your domains</div>
-      <div class="l2-implications">${(l2.implications_for_patrik||[]).map(i=>`• ${esc(i)}`).join('<br>')}</div>
+      <div class="l2-lbl">Implications</div>
+      <div class="l2-implications">${esc(l2.implications || (l2.implications_for_patrik||[]).join(' · '))}</div>
     </div>
-    <div class="reflect-box">${esc(l2.reflection_question)}</div>
+    ${(l2.questions||[]).length ? `<div class="l2-block">
+      <div class="l2-lbl">Questions to consider</div>
+      ${(l2.questions||[]).map(q=>`<div class="reflect-box" style="margin-bottom:4px">${esc(q)}</div>`).join('')}
+    </div>` : ''}
+    <div class="reflect-box">${esc(l2.reflection || l2.reflection_question || '')}</div>
     <div class="l2-actions">
       <button class="l2-action act-thesis" data-source="${esc(nl.name)}" data-text="${esc(l2.framing)}">Save to thesis</button>
       <button class="l2-action act-deeper" data-context="${encodeURIComponent(JSON.stringify(l2))}">Go deeper →</button>
