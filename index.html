@@ -1852,6 +1852,28 @@ async function buildSystemPrompt() {
     if (res.ok) userProfile = await res.text();
   } catch {}
 
+  // Load user model (D8 — evolving beliefs, patterns, challenges)
+  let userModel = '';
+  try {
+    const umRes = await fetch('/knowledge/user-model.md');
+    if (umRes.ok) userModel = await umRes.text();
+  } catch {}
+
+  // Load weekly report (D7 — last synthesis context)
+  let weeklyReport = '';
+  try {
+    const wrRes = await fetch('/weekly-report.json');
+    if (wrRes.ok) {
+      const wr = await wrRes.json();
+      weeklyReport = `
+## Last Weekly Synthesis (${wr.week_of})
+Dominant narrative: ${wr.dominant_narrative}
+This week's conviction: ${wr.one_conviction}
+Your 3 challenges: ${(wr.weekly_challenges || []).join(' | ')}
+`.trim();
+    }
+  } catch {}
+
   // Summarize today's briefing as context
   const briefing = STATE.briefing;
   let briefingContext = '';
@@ -1890,6 +1912,7 @@ ${userProfile}
 
 ${briefingContext}
 
+${weeklyReport ? `${weeklyReport}\n` : ''}${userModel ? `## Your Evolving User Model\n${userModel}\n` : ''}
 ## Your Role
 Answer questions about today's briefing, explain signals and stories in depth,
 connect information to the user's specific domains (D1-D4), and provide sharp
@@ -1897,6 +1920,9 @@ analysis when asked. You have full context of today's briefing above.
 
 When the user asks to "deep dive" on a topic, search your knowledge and provide
 the most current and relevant analysis you can — go beyond what's in the briefing.
+
+You know the user's current beliefs, open questions, and recent challenges from the user model.
+Reference these when relevant — help the user think, not just consume.
 
 Be direct. No filler. Every sentence must add value.`;
 

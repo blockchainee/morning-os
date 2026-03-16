@@ -4,7 +4,7 @@
  * Runs in GitHub Actions, writes to Notion.
  */
 
-import { readFileSync, existsSync, mkdirSync, writeFileSync } from 'fs';
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readdirSync, unlinkSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -946,6 +946,22 @@ async function main() {
   const staticPath = join(ROOT, 'briefing.json');
   writeFileSync(staticPath, JSON.stringify(briefing, null, 2));
   log(`Static briefing written to ${staticPath}`);
+
+  // Archive today's briefing (Phase D — daily archive for weekly synthesis)
+  const archiveDir = join(ROOT, 'archive');
+  mkdirSync(archiveDir, { recursive: true });
+  const archiveFile = join(archiveDir, `${todayISODate()}.json`);
+  writeFileSync(archiveFile, JSON.stringify(briefing, null, 2));
+  log(`[Archive] Saved briefing to archive/${todayISODate()}.json`);
+
+  // Cap archive at 90 days
+  const archiveFiles = readdirSync(archiveDir).filter(f => f.endsWith('.json')).sort();
+  if (archiveFiles.length > 90) {
+    archiveFiles.slice(0, archiveFiles.length - 90).forEach(f => {
+      unlinkSync(join(archiveDir, f));
+      log(`[Archive] Pruned old file: ${f}`);
+    });
+  }
 
   const nlSuccess = briefing.newsletters.filter(n=>n.has_new_edition).length;
   log(`=== Done in ${((Date.now()-t0)/1000).toFixed(1)}s · ${nlSuccess}/${activeNewsletters.length} newsletters · ${podcasts.length} podcasts ===`);
