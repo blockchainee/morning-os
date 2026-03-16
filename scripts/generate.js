@@ -37,6 +37,23 @@ if (!NOTION_KEY)           { log('FATAL: NOTION_API_KEY not set'); process.exit(
 if (!NOTION_DB_ID)         { log('FATAL: NOTION_DATABASE_ID not set'); process.exit(1); }
 if (!GOOGLE_ENABLED)       { log('WARN: Google OAuth not configured — calendar and newsletters will be skipped'); }
 
+// ── Retry wrapper for external API calls ─────────────────────
+async function fetchWithRetry(url, opts, { retries = 3, label = 'fetch' } = {}) {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const resp = await fetch(url, opts);
+      if (resp.ok || resp.status < 500 && resp.status !== 429) return resp;
+      log(`${label} attempt ${attempt}/${retries} — HTTP ${resp.status}`);
+    } catch (err) {
+      log(`${label} attempt ${attempt}/${retries} — ${err.message}`);
+      if (attempt === retries) throw err;
+    }
+    if (attempt < retries) await new Promise(r => setTimeout(r, 1000 * Math.pow(2, attempt)));
+  }
+  // Final attempt — let errors propagate
+  return fetch(url, opts);
+}
+
 // ── Google OAuth Token Refresh ────────────────────────────────
 let googleAccessToken = null;
 let tokenRefreshPromise = null;
@@ -553,7 +570,7 @@ async function writeToNotion(briefing) {
   // Check for existing briefing today to prevent duplicates
   const today = todayISODate();
   try {
-    const checkResp = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
+    const checkResp = await fetchWithRetry(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${NOTION_KEY}`,
@@ -564,13 +581,13 @@ async function writeToNotion(briefing) {
         filter: { property: 'Date', date: { equals: today } },
         page_size: 1,
       }),
-    });
+    }, { label: 'Notion dedup query' });
     if (checkResp.ok) {
       const existing = await checkResp.json();
       if (existing.results && existing.results.length > 0) {
         const existingId = existing.results[0].id;
         log(`Duplicate detected for ${today} — archiving old page ${existingId}`);
-        await fetch(`https://api.notion.com/v1/pages/${existingId}`, {
+        await fetchWithRetry(`https://api.notion.com/v1/pages/${existingId}`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${NOTION_KEY}`,
@@ -578,7 +595,7 @@ async function writeToNotion(briefing) {
             'Notion-Version': '2022-06-28',
           },
           body: JSON.stringify({ archived: true }),
-        });
+        }, { label: 'Notion archive old page' });
       }
     }
   } catch (err) {
@@ -591,7 +608,7 @@ async function writeToNotion(briefing) {
 
   const allBlocks = buildNotionBlocks(briefing);
 
-  const createResp = await fetch('https://api.notion.com/v1/pages', {
+  const createResp = await fetchWithRetry('https://api.notion.com/v1/pages', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${NOTION_KEY}`,
@@ -606,7 +623,7 @@ async function writeToNotion(briefing) {
       },
       children: allBlocks.slice(0, 100),
     }),
-  });
+  }, { label: 'Notion create page' });
 
   if (!createResp.ok) {
     const err = await createResp.text();
@@ -618,7 +635,8 @@ async function writeToNotion(briefing) {
 
   // Append remaining blocks if > 100
   for (let i = 100; i < allBlocks.length; i += 100) {
-    await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
+    const batchNum = Math.floor(i/100) + 1;
+    const appendResp = await fetchWithRetry(`https://api.notion.com/v1/blocks/${pageId}/children`, {
       method: 'PATCH',
       headers: {
         'Authorization': `Bearer ${NOTION_KEY}`,
@@ -626,7 +644,10 @@ async function writeToNotion(briefing) {
         'Notion-Version': '2022-06-28',
       },
       body: JSON.stringify({ children: allBlocks.slice(i, i+100) }),
-    });
+    }, { label: `Notion append blocks batch ${batchNum}` });
+    if (!appendResp.ok) {
+      log(`Warning: block append batch ${batchNum} failed (HTTP ${appendResp.status}) — page may be incomplete`);
+    }
   }
 
   return `https://notion.so/${pageId.replace(/-/g,'')}`;
