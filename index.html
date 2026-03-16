@@ -708,6 +708,104 @@ html, body {
   0%,100% { opacity: .6; }
   50%      { opacity: 1; }
 }
+
+/* ── INTELLIGENCE CHAT DRAWER ──────────────────────────────── */
+.drawer {
+  position: fixed;
+  bottom: 0; right: 0;
+  width: 100%; max-width: 480px;
+  height: 70vh;
+  background: var(--bg2);
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -4px 40px rgba(0,0,0,0.15);
+  display: flex; flex-direction: column;
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 1000;
+  overflow: hidden;
+}
+.drawer.closed { transform: translateY(100%); }
+.drawer-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 999;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s;
+}
+.drawer-backdrop.visible { opacity: 1; pointer-events: all; }
+.drawer-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg2);
+}
+.drawer-title {
+  font-weight: 600; font-size: 15px; color: var(--text);
+  letter-spacing: 0.02em;
+}
+.drawer-close {
+  background: none; border: none; color: var(--text3);
+  font-size: 18px; cursor: pointer; padding: 4px 8px;
+}
+.chat-messages {
+  flex: 1; overflow-y: auto;
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.chat-msg { max-width: 85%; line-height: 1.5; font-size: 13px; }
+.chat-msg.user {
+  align-self: flex-end;
+  background: var(--accent); color: #fff;
+  padding: 10px 14px; border-radius: 16px 16px 4px 16px;
+}
+.chat-msg.assistant {
+  align-self: flex-start;
+  background: var(--bg3); color: var(--text);
+  padding: 10px 14px; border-radius: 16px 16px 16px 4px;
+  white-space: pre-wrap;
+}
+.chat-msg.thinking { opacity: 0.5; font-style: italic; }
+.chat-input-row {
+  display: flex; gap: 8px; padding: 10px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--bg2);
+}
+#chat-input {
+  flex: 1; background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 12px; color: var(--text);
+  padding: 10px 14px; font-size: 13px; resize: none;
+  font-family: var(--font-sans); line-height: 1.4;
+}
+#chat-input:focus { outline: none; border-color: var(--accent); }
+#chat-input::placeholder { color: var(--text3); }
+#chat-send {
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 12px;
+  width: 40px; height: 40px; font-size: 18px;
+  cursor: pointer; flex-shrink: 0; align-self: flex-end;
+  font-family: var(--font-sans);
+}
+#chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.ask-claude-btn {
+  background: none; border: 1px solid var(--border2);
+  color: var(--accent); border-radius: 8px;
+  padding: 4px 10px; font-size: 11px; cursor: pointer;
+  font-family: var(--font-sans); font-weight: 500;
+  opacity: 0.8; transition: opacity 0.2s;
+  margin-top: 6px;
+}
+.ask-claude-btn:hover, .ask-claude-btn:active { opacity: 1; }
+#intelligence-btn {
+  position: fixed; bottom: 72px; right: 16px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 24px;
+  padding: 10px 16px; font-size: 13px; font-weight: 600;
+  cursor: pointer; box-shadow: 0 4px 16px rgba(14,143,98,0.35);
+  z-index: 998; letter-spacing: 0.02em;
+  font-family: var(--font-sans);
+}
 </style>
 </head>
 <body>
@@ -779,7 +877,23 @@ html, body {
     <button class="save-settings-btn" id="save-settings-btn">Save Settings</button>
   </div>
 
+  <!-- INTELLIGENCE CHAT -->
+  <button id="intelligence-btn" onclick="openIntelligenceChat(null, null)" title="Ask Claude about today's briefing">✦ Ask</button>
+
 </div>
+
+<div id="intelligence-drawer" class="drawer closed">
+  <div class="drawer-header">
+    <span class="drawer-title">✦ Intelligence</span>
+    <button class="drawer-close" onclick="closeIntelligenceChat()">✕</button>
+  </div>
+  <div id="chat-messages" class="chat-messages"></div>
+  <div class="chat-input-row">
+    <textarea id="chat-input" placeholder="Ask about today's briefing..." rows="2" onkeydown="handleChatKey(event)"></textarea>
+    <button id="chat-send" onclick="sendChatMessage()">↑</button>
+  </div>
+</div>
+<div id="drawer-backdrop" class="drawer-backdrop" onclick="closeIntelligenceChat()"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════
@@ -1144,6 +1258,7 @@ function renderNewsletterCard(nl, data) {
       <button class="l2-action act-thesis" data-source="${esc(nl.name)}" data-text="${esc(l2.framing)}">Save to thesis</button>
       <button class="l2-action act-deeper" data-context="${encodeURIComponent(JSON.stringify(l2))}">Go deeper →</button>
     </div>
+    <button class="ask-claude-btn" onclick="openIntelligenceChat('${esc(nl.id)}', 'newsletter')">Ask Claude →</button>
   </div>`;
   wrap.appendChild(l2panel);
 
@@ -1304,6 +1419,7 @@ function renderPodcastCard(pod) {
       <button class="l2-action act-deeper" style="background:var(--accent2-bg);color:var(--accent2)"
         data-context="${encodeURIComponent(JSON.stringify(d))}">Go deeper →</button>
     </div>
+    <button class="ask-claude-btn" onclick="openIntelligenceChat('${esc(pod.id)}', 'podcast')">Ask Claude →</button>
   </div>`;
   wrap.appendChild(pl2);
 
@@ -1404,6 +1520,14 @@ function renderGrow(el) {
       <div class="grow-body">${(g.mini_concept.five_sentences||[]).join(' ')}</div>`;
     el.appendChild(c);
   }
+
+  // Ask Claude button for entire Grow section
+  const askBtn = document.createElement('button');
+  askBtn.className = 'ask-claude-btn';
+  askBtn.textContent = 'Ask Claude about today\'s growth content →';
+  askBtn.style.cssText = 'width:100%;text-align:center;padding:8px;margin-top:4px';
+  askBtn.onclick = () => openIntelligenceChat(null, 'grow');
+  el.appendChild(askBtn);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1708,6 +1832,168 @@ renderTab();
 
 // Auto-load briefing from static JSON on startup
 loadBriefing();
+
+// ═══════════════════════════════════════════════════════════════
+// INTELLIGENCE CHAT
+// ═══════════════════════════════════════════════════════════════
+const CHAT_STATE = {
+  messages: [],
+  systemPrompt: null,
+  isLoading: false,
+};
+
+async function buildSystemPrompt() {
+  if (CHAT_STATE.systemPrompt) return CHAT_STATE.systemPrompt;
+
+  // Load user profile from knowledge file
+  let userProfile = '';
+  try {
+    const res = await fetch('/knowledge/user-profile.md');
+    if (res.ok) userProfile = await res.text();
+  } catch {}
+
+  // Summarize today's briefing as context
+  const briefing = STATE.briefing;
+  let briefingContext = '';
+  if (briefing) {
+    const newsletterSummaries = (briefing.newsletters || [])
+      .filter(n => n.has_new_edition)
+      .map(n => `- ${n.name || n.id}: ${n.layer1?.summary || ''}`)
+      .join('\n');
+    const calData = briefing.calendar;
+    const calendarItems = calData && calData.today
+      ? calData.today.map(e => `- ${e.title || 'Untitled'} at ${e.time || ''}`).join('\n')
+      : '';
+    const growthSummary = briefing.growth
+      ? `Small talk hook: ${briefing.growth.small_talk_bridge?.topic_hook || 'N/A'}
+Arabic word: ${briefing.growth.arabic?.word || 'N/A'} (${briefing.growth.arabic?.transliteration || ''})
+Mini concept: ${briefing.growth.mini_concept?.concept_name || 'N/A'}`
+      : '';
+    briefingContext = `
+## Today's Briefing Summary
+Date: ${briefing.generated_at || new Date().toDateString()}
+
+### Newsletters processed today:
+${newsletterSummaries || 'None'}
+
+### Calendar:
+${calendarItems || 'No events'}
+
+### Growth:
+${growthSummary || 'Not generated'}
+`.trim();
+  }
+
+  CHAT_STATE.systemPrompt = `You are a personal intelligence assistant for the user of Morning OS.
+
+${userProfile}
+
+${briefingContext}
+
+## Your Role
+Answer questions about today's briefing, explain signals and stories in depth,
+connect information to the user's specific domains (D1-D4), and provide sharp
+analysis when asked. You have full context of today's briefing above.
+
+When the user asks to "deep dive" on a topic, search your knowledge and provide
+the most current and relevant analysis you can — go beyond what's in the briefing.
+
+Be direct. No filler. Every sentence must add value.`;
+
+  return CHAT_STATE.systemPrompt;
+}
+
+function openIntelligenceChat(cardId, cardType) {
+  const drawer = document.getElementById('intelligence-drawer');
+  const backdrop = document.getElementById('drawer-backdrop');
+  drawer.classList.remove('closed');
+  backdrop.classList.add('visible');
+  setTimeout(() => document.getElementById('chat-input').focus(), 300);
+
+  // Pre-fill contextual starter based on card type
+  if (cardId || cardType) {
+    let starter = '';
+    if (cardType === 'newsletter') {
+      const nl = (STATE.briefing?.newsletters || []).find(n => n.id === cardId);
+      if (nl) starter = `Tell me more about the key signals from ${nl.name || nl.id} today. What are the deeper implications for my work and portfolio?`;
+    } else if (cardType === 'podcast') {
+      const pod = (STATE.briefing?.podcasts || []).find(p => p.id === cardId);
+      if (pod) starter = `Deep dive on the main ideas from ${pod.name} — ${pod.episode || 'latest episode'}. What should I take away?`;
+    } else if (cardType === 'grow') {
+      starter = `Expand on today's growth content. Give me more depth on the small talk technique and mini concept.`;
+    }
+    if (starter) {
+      document.getElementById('chat-input').value = starter;
+    }
+  }
+}
+
+function closeIntelligenceChat() {
+  document.getElementById('intelligence-drawer').classList.add('closed');
+  document.getElementById('drawer-backdrop').classList.remove('visible');
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChatMessage();
+  }
+}
+
+async function sendChatMessage() {
+  if (CHAT_STATE.isLoading) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  CHAT_STATE.isLoading = true;
+  document.getElementById('chat-send').disabled = true;
+
+  appendChatMessage('user', text);
+  CHAT_STATE.messages.push({ role: 'user', content: text });
+
+  const thinkingEl = appendChatMessage('assistant thinking', '...');
+
+  try {
+    const systemPrompt = await buildSystemPrompt();
+
+    const response = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: systemPrompt,
+        messages: CHAT_STATE.messages,
+      }),
+    });
+
+    if (!response.ok) throw new Error(`API error ${response.status}`);
+    const data = await response.json();
+    const reply = data.text || 'No response received.';
+
+    thinkingEl.textContent = reply;
+    thinkingEl.classList.remove('thinking');
+
+    CHAT_STATE.messages.push({ role: 'assistant', content: reply });
+
+  } catch (err) {
+    thinkingEl.textContent = `Error: ${err.message}. Check that ANTHROPIC_API_KEY is set in Netlify.`;
+    thinkingEl.classList.remove('thinking');
+  } finally {
+    CHAT_STATE.isLoading = false;
+    document.getElementById('chat-send').disabled = false;
+  }
+}
+
+function appendChatMessage(role, text) {
+  const container = document.getElementById('chat-messages');
+  const el = document.createElement('div');
+  el.className = `chat-msg ${role}`;
+  el.textContent = text;
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
 </script>
 </body>
 </html>
