@@ -1,0 +1,1237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Morning OS</title>
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Morning OS">
+  <meta name="theme-color" content="#0a0a0a">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;1,400&family=DM+Mono:wght@300;400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── 1. CSS Variables ──────────────────────────────────────── */
+:root {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-tertiary: #1a1a1a;
+  --bg-glass: rgba(255,255,255,0.03);
+  --text-primary: #f0ece4;
+  --text-secondary: #8a8478;
+  --text-tertiary: #4a4642;
+  --signal: #c8a96e;
+  --signal-subtle: rgba(200, 169, 110, 0.12);
+  --d1: #4a7fa5;
+  --d2: #5a9e7a;
+  --d3: #9e5a5a;
+  --d4: #7a5a9e;
+  --border: rgba(240, 236, 228, 0.06);
+  --border-active: rgba(240, 236, 228, 0.15);
+  --success: #5a9e7a;
+  --error: #9e5a5a;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 40px;
+  --space-xl: 64px;
+  --space-2xl: 96px;
+  --radius-sm: 4px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+  --content-width: 680px;
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 150ms;
+  --duration-normal: 280ms;
+  --duration-slow: 450ms;
+  --duration-reveal: 600ms;
+}
+
+/* ── 2. Reset & Base ───────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 300;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  min-height: 100dvh;
+}
+a { color: var(--signal); text-decoration: none; }
+
+/* ── 3. Typography ─────────────────────────────────────────── */
+.t-display { font-family: var(--font-display); font-size: 28px; font-weight: 400; line-height: 1.3; color: var(--text-primary); }
+.t-display-sm { font-family: var(--font-display); font-size: 20px; font-weight: 400; font-style: italic; line-height: 1.35; }
+.t-card-title { font-family: var(--font-body); font-size: 16px; font-weight: 500; color: var(--text-primary); }
+.t-body { font-family: var(--font-body); font-size: 14px; font-weight: 300; color: var(--text-secondary); line-height: 1.6; }
+.t-meta { font-family: var(--font-mono); font-size: 11px; font-weight: 400; color: var(--text-tertiary); letter-spacing: 0.04em; text-transform: uppercase; }
+.t-data { font-family: var(--font-mono); font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+.t-signal { font-family: var(--font-display); color: var(--signal); }
+
+/* ── 4. Layout ─────────────────────────────────────────────── */
+.content { max-width: var(--content-width); margin: 0 auto; padding: 0 20px; }
+.view { display: none; padding-top: var(--space-lg); padding-bottom: 100px; }
+.view.active { display: block; }
+
+/* ── 5. Animation ──────────────────────────────────────────── */
+@keyframes revealUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes slideFromLeft {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.reveal { animation: revealUp var(--duration-reveal) var(--ease-out) both; }
+.reveal-0 { animation-delay: 0ms; }
+.reveal-1 { animation-delay: 80ms; }
+.reveal-2 { animation-delay: 160ms; }
+.reveal-3 { animation-delay: 240ms; }
+.reveal-4 { animation-delay: 320ms; }
+.reveal-5 { animation-delay: 400ms; }
+.reveal-6 { animation-delay: 600ms; }
+.reveal-7 { animation-delay: 800ms; }
+.reveal-8 { animation-delay: 1000ms; }
+.slide-in { animation: slideFromLeft var(--duration-reveal) var(--ease-out) both; }
+
+.expandable {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--duration-slow) var(--ease-out);
+}
+.expandable.open { grid-template-rows: 1fr; }
+.expandable > * { overflow: hidden; }
+
+/* ── 6. Loading Screen ─────────────────────────────────────── */
+#loading-screen {
+  position: fixed; inset: 0; z-index: 100;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg-primary);
+  transition: opacity 0.5s var(--ease-out);
+}
+#loading-screen.hidden { opacity: 0; pointer-events: none; }
+#loading-screen .mark { font-size: 32px; color: var(--signal); animation: pulse 2s ease-in-out infinite; }
+#loading-screen .label { margin-top: var(--space-sm); }
+
+/* ── 7. Cards ──────────────────────────────────────────────── */
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+  margin-bottom: var(--space-sm);
+  transition: border-color var(--duration-normal) var(--ease-out);
+}
+.card:hover { border-color: var(--border-active); }
+.card.high-signal {
+  border-left: 2px solid var(--signal);
+  background: var(--signal-subtle);
+}
+.card.high-signal .t-card-title { color: var(--signal); }
+.card-meta { margin-bottom: var(--space-xs); }
+.card-summary { margin: var(--space-xs) 0 var(--space-sm); }
+.card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-sm); }
+.card-divider { border: none; border-top: 1px solid var(--border); margin: var(--space-sm) 0; }
+
+/* Layer 2 */
+.l2-section { margin-bottom: var(--space-sm); }
+.l2-label { margin-bottom: var(--space-xs); }
+.l2-quote {
+  border-left: 2px solid var(--border-active);
+  padding-left: var(--space-sm);
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: var(--space-xs) 0;
+}
+.l2-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-sm); }
+
+/* Triage badges */
+.triage { font-family: var(--font-mono); font-size: 11px; padding: 4px 10px; border-radius: var(--radius-full); text-transform: uppercase; letter-spacing: 0.04em; }
+.triage-act { color: var(--success); border: 1px solid var(--success); }
+.triage-save { color: var(--signal); border: 1px solid var(--signal); }
+.triage-noted { color: var(--text-secondary); border: 1px solid var(--border); }
+.triage-skip { color: var(--text-tertiary); border: 1px solid transparent; opacity: 0.5; }
+
+/* Domain dot */
+.domain-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
+.domain-dot.d1 { background: var(--d1); }
+.domain-dot.d2 { background: var(--d2); }
+.domain-dot.d3 { background: var(--d3); }
+.domain-dot.d4 { background: var(--d4); }
+
+/* Signal pill */
+.signal-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary);
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+/* ── 8. Buttons ────────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.04em;
+  color: var(--text-secondary); background: transparent;
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  padding: 6px 14px; cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  text-transform: uppercase;
+}
+.btn:hover { border-color: var(--border-active); color: var(--text-primary); }
+.btn-signal { color: var(--signal); border-color: var(--signal); }
+.btn-signal:hover { background: var(--signal-subtle); }
+.btn-ghost { border: none; padding: 6px 8px; }
+.btn-ghost:hover { color: var(--signal); }
+
+/* ── 9. Opening Screen ─────────────────────────────────────── */
+#view-opening .opening-date { margin-bottom: var(--space-xl); }
+#view-opening .opening-headline { max-width: 520px; margin-bottom: var(--space-md); }
+#view-opening .opening-context { max-width: 440px; margin-bottom: var(--space-lg); }
+#view-opening .opening-signal-count { margin-bottom: var(--space-sm); }
+#view-opening .opening-pills { display: flex; flex-wrap: wrap; gap: var(--space-xs); margin-bottom: var(--space-xl); }
+#view-opening .opening-enter { cursor: pointer; transition: color var(--duration-fast); }
+#view-opening .opening-enter:hover { color: var(--text-primary); }
+
+/* ── 10. Briefing Feed ─────────────────────────────────────── */
+.feed-header {
+  position: sticky; top: 0; z-index: 10;
+  background: var(--bg-primary);
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-sm);
+}
+.key-statements { list-style: none; padding: 0; }
+.key-statements li {
+  font-family: var(--font-body); font-size: 13px; color: var(--text-secondary);
+  padding: 4px 0; padding-left: var(--space-sm);
+  border-left: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.key-statements li::before { content: none; }
+
+/* Topic collapse */
+.topic-header {
+  cursor: pointer; display: flex; align-items: center; gap: var(--space-xs);
+  padding: var(--space-xs) 0;
+}
+.topic-header .arrow { transition: transform var(--duration-fast); font-size: 12px; color: var(--text-tertiary); }
+.topic-header.open .arrow { transform: rotate(90deg); }
+
+/* ── 11. Grow ──────────────────────────────────────────────── */
+.arabic-word {
+  font-family: var(--font-display);
+  font-size: 32px;
+  color: var(--text-primary);
+  margin: var(--space-xs) 0;
+  line-height: 1.4;
+}
+
+/* ── 12. Challenge ─────────────────────────────────────────── */
+.challenge-screen {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 60vh; text-align: center;
+}
+.challenge-text {
+  font-family: var(--font-display); font-style: italic; font-size: 24px;
+  color: var(--text-primary); max-width: 480px; line-height: 1.4;
+  margin: var(--space-xl) 0 var(--space-lg);
+}
+.challenge-dots { display: flex; gap: var(--space-xs); margin-top: var(--space-lg); }
+.challenge-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-tertiary); transition: background var(--duration-fast); }
+.challenge-dot.active { background: var(--text-primary); }
+.challenge-actions { display: flex; gap: var(--space-sm); margin-top: var(--space-md); }
+.challenge-reflected { opacity: 0.4; }
+
+/* Saved items section */
+.saved-section { margin-top: var(--space-xl); text-align: left; width: 100%; }
+.saved-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-xs) 0;
+  border-bottom: 1px solid var(--border);
+}
+.saved-item-remove { cursor: pointer; color: var(--text-tertiary); font-size: 16px; padding: 4px 8px; }
+.saved-item-remove:hover { color: var(--error); }
+
+/* ── 13. Sunday Weekly ─────────────────────────────────────── */
+.weekly-conviction { font-family: var(--font-display); font-size: 28px; color: var(--signal); max-width: 520px; line-height: 1.3; margin: var(--space-sm) 0 var(--space-xl); }
+.signal-row { display: flex; align-items: baseline; gap: var(--space-xs); padding: var(--space-xs) 0; border-bottom: 1px solid var(--border); }
+.signal-trend { font-size: 14px; }
+
+/* ── 14. Navigation ────────────────────────────────────────── */
+.nav-bar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 64px;
+  background: var(--bg-primary);
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around; align-items: center;
+  padding-bottom: env(safe-area-inset-bottom);
+  z-index: 50;
+}
+.nav-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  cursor: pointer; color: var(--text-tertiary);
+  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color var(--duration-fast);
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-item .nav-icon { font-size: 20px; transition: color var(--duration-fast); }
+.nav-item.active .nav-icon { color: var(--text-primary); }
+.nav-item.active .nav-label { color: var(--signal); }
+
+/* ── 15. Chat Drawer ───────────────────────────────────────── */
+.drawer-backdrop {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(0,0,0,0.6);
+  opacity: 0; pointer-events: none;
+  transition: opacity var(--duration-normal) var(--ease-out);
+}
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; bottom: 0; left: 50%; z-index: 70;
+  transform: translateX(-50%) translateY(100%);
+  width: 100%; max-width: var(--content-width);
+  height: 72vh;
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-top: 1px solid var(--border-active);
+  display: flex; flex-direction: column;
+  transition: transform var(--duration-slow) var(--ease-out);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.drawer.open { transform: translateX(-50%) translateY(0); }
+.drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.drawer-close { cursor: pointer; color: var(--text-tertiary); font-size: 20px; padding: 4px; }
+.drawer-close:hover { color: var(--text-primary); }
+.chat-messages {
+  flex: 1; overflow-y: auto; padding: var(--space-md);
+  display: flex; flex-direction: column; gap: var(--space-sm);
+}
+.msg-user {
+  align-self: flex-end;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-md);
+  padding: 12px 16px;
+  font-size: 14px; font-weight: 300;
+  max-width: 80%;
+  color: var(--text-primary);
+}
+.msg-assistant {
+  align-self: flex-start;
+  background: transparent;
+  padding: 4px 0;
+  font-size: 14px; font-weight: 300;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-width: 100%;
+}
+.msg-thinking::after { content: '\u2588'; animation: blink 1s step-end infinite; }
+.chat-input-area {
+  padding: var(--space-sm) var(--space-md);
+  border-top: 1px solid var(--border);
+  display: flex; gap: var(--space-xs);
+  flex-shrink: 0;
+}
+.chat-input-area textarea {
+  flex: 1; background: transparent; border: none; outline: none;
+  color: var(--text-primary); font-family: var(--font-body);
+  font-size: 14px; font-weight: 300; resize: none;
+  min-height: 40px; max-height: 120px;
+}
+.chat-input-area textarea::placeholder { color: var(--text-tertiary); }
+.chat-send {
+  background: transparent; border: none; color: var(--text-tertiary);
+  cursor: pointer; font-size: 18px; padding: 8px;
+  transition: color var(--duration-fast);
+}
+.chat-send:hover { color: var(--signal); }
+.chat-send:disabled { opacity: 0.3; cursor: default; }
+
+/* ── 16. FAB ───────────────────────────────────────────────── */
+.fab {
+  position: fixed; bottom: 80px; right: 20px; z-index: 40;
+  width: 48px; height: 48px;
+  background: var(--bg-tertiary); border: 1px solid var(--border-active);
+  border-radius: 50%; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; color: var(--signal);
+  transition: all var(--duration-normal) var(--ease-out);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.fab:hover { background: var(--signal-subtle); border-color: var(--signal); }
+
+/* ── 17. Responsive ────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .t-display { font-size: 24px; }
+  .challenge-text { font-size: 20px; }
+  .weekly-conviction { font-size: 22px; }
+  .nav-item .nav-label { display: none; }
+}
+@media (min-width: 768px) {
+  .nav-item .nav-label { display: block; }
+}
+</style>
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <div class="mark">&#10022;</div>
+  <div class="label t-meta">PREPARING YOUR BRIEFING</div>
+</div>
+
+<!-- Views -->
+<main id="app">
+
+  <!-- Moment 1: THE SIGNAL -->
+  <div id="view-opening" class="view content">
+    <div class="opening-date t-meta reveal reveal-0"></div>
+    <div class="opening-headline t-display reveal reveal-2"></div>
+    <div class="opening-context t-body reveal reveal-3"></div>
+    <div class="opening-signal-count t-meta reveal reveal-5" style="color:var(--signal)"></div>
+    <div class="opening-pills reveal reveal-6"></div>
+    <div class="opening-enter t-body reveal reveal-8" onclick="navigateTo('briefing')">&darr; Enter the briefing</div>
+  </div>
+
+  <!-- Moment 2: THE BRIEFING -->
+  <div id="view-briefing" class="view content">
+    <div class="feed-header t-meta"></div>
+    <div id="briefing-feed"></div>
+  </div>
+
+  <!-- Moment 3: THE GROWTH -->
+  <div id="view-grow" class="view content">
+    <div class="grow-header t-meta reveal reveal-0"></div>
+    <div id="grow-cards" style="margin-top:var(--space-xl)"></div>
+  </div>
+
+  <!-- Moment 4: THE CHALLENGE -->
+  <div id="view-challenge" class="view content">
+    <div id="challenge-area"></div>
+  </div>
+
+  <!-- Sunday: THE WEEK -->
+  <div id="view-weekly" class="view content">
+    <div id="weekly-area"></div>
+  </div>
+
+</main>
+
+<!-- Navigation -->
+<nav class="nav-bar">
+  <div class="nav-item active" data-view="opening" onclick="navigateTo('opening')">
+    <span class="nav-icon">&#9672;</span>
+    <span class="nav-label">Signal</span>
+  </div>
+  <div class="nav-item" data-view="briefing" onclick="navigateTo('briefing')">
+    <span class="nav-icon">&#10022;</span>
+    <span class="nav-label">Briefing</span>
+  </div>
+  <div class="nav-item" data-view="grow" onclick="navigateTo('grow')">
+    <span class="nav-icon">&#8607;</span>
+    <span class="nav-label">Grow</span>
+  </div>
+  <div class="nav-item" data-view="challenge" onclick="navigateTo('challenge')">
+    <span class="nav-icon">&#11045;</span>
+    <span class="nav-label">Challenge</span>
+  </div>
+</nav>
+
+<!-- Chat FAB -->
+<div class="fab" onclick="openChat()">&#10022;</div>
+
+<!-- Chat Drawer -->
+<div class="drawer-backdrop" id="drawer-backdrop" onclick="closeChat()"></div>
+<div class="drawer" id="chat-drawer">
+  <div class="drawer-header">
+    <span class="t-meta" id="chat-header-label">INTELLIGENCE</span>
+    <span class="drawer-close" onclick="closeChat()">&times;</span>
+  </div>
+  <div class="chat-messages" id="chat-messages"></div>
+  <div class="chat-input-area">
+    <textarea id="chat-input" rows="1" placeholder="Ask anything about today's briefing..." onkeydown="handleChatKey(event)"></textarea>
+    <button class="chat-send" id="chat-send" onclick="sendChat()">&uarr;</button>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 1. STATE
+// ═══════════════════════════════════════════════════════════════
+const STATE = {
+  briefing: null,
+  weeklyReport: null,
+  userProfile: '',
+  userModel: '',
+  view: 'opening',
+  scrollPositions: {},
+  expandedCards: new Set(),
+  chatOpen: false,
+  chatContext: null,
+  chatMessages: [],
+  chatSystemPrompt: null,
+  savedItems: JSON.parse(localStorage.getItem('mos-v2-saved') || '[]'),
+  isLoading: true,
+  sundayMode: false,
+  currentChallenge: 0,
+  reflectedChallenges: new Set(JSON.parse(localStorage.getItem('mos-v2-reflected') || '[]')),
+};
+
+// ═══════════════════════════════════════════════════════════════
+// 2. DATA LOADING
+// ═══════════════════════════════════════════════════════════════
+async function loadData() {
+  try {
+    const [briefRes, weeklyRes, profileRes, modelRes] = await Promise.allSettled([
+      fetch('briefing.json?t=' + Date.now()),
+      fetch('weekly-report.json?t=' + Date.now()),
+      fetch('knowledge/user-profile.md'),
+      fetch('knowledge/user-model.md'),
+    ]);
+    if (briefRes.status === 'fulfilled' && briefRes.value.ok) {
+      STATE.briefing = await briefRes.value.json();
+    }
+    if (weeklyRes.status === 'fulfilled' && weeklyRes.value.ok) {
+      STATE.weeklyReport = await weeklyRes.value.json();
+    }
+    if (profileRes.status === 'fulfilled' && profileRes.value.ok) {
+      STATE.userProfile = await profileRes.value.text();
+    }
+    if (modelRes.status === 'fulfilled' && modelRes.value.ok) {
+      STATE.userModel = await modelRes.value.text();
+    }
+  } catch (e) {
+    console.error('Data load error:', e);
+  }
+
+  // Sunday detection
+  const today = new Date();
+  STATE.sundayMode = today.getDay() === 0 && STATE.weeklyReport !== null;
+
+  STATE.isLoading = false;
+  hideLoading();
+  renderAll();
+  AudioFX.briefingReady();
+}
+
+function hideLoading() {
+  const el = document.getElementById('loading-screen');
+  if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 600); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3. NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+function navigateTo(view) {
+  STATE.scrollPositions[STATE.view] = window.scrollY;
+  STATE.view = view;
+  // Show/hide views
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  const target = document.getElementById('view-' + view);
+  if (target) target.classList.add('active');
+  // Nav active state
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.view === view);
+  });
+  window.scrollTo(0, STATE.scrollPositions[view] || 0);
+  // Re-trigger reveal animations
+  if (target) {
+    target.querySelectorAll('.reveal').forEach(el => {
+      el.style.animation = 'none';
+      el.offsetHeight; // force reflow
+      el.style.animation = '';
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 4. RENDER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════
+
+function domainColor(d) {
+  const map = { D1: 'var(--d1)', D2: 'var(--d2)', D3: 'var(--d3)', D4: 'var(--d4)' };
+  return map[d] || 'var(--text-tertiary)';
+}
+
+function domainClass(d) {
+  return (d || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function escHtml(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderAll() {
+  if (!STATE.briefing) return;
+  renderOpening();
+  renderBriefing();
+  renderGrow();
+  renderChallenge();
+  if (STATE.sundayMode) renderWeekly();
+}
+
+// ── Opening ───────────────────────────────────────────────
+function renderOpening() {
+  const b = STATE.briefing;
+  const opening = b._opening;
+  const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  const months = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+  const now = new Date();
+  const dateStr = `${days[now.getDay()]}  \u00b7  ${now.getDate()} ${months[now.getMonth()]}  \u00b7  DUBAI`;
+
+  document.querySelector('.opening-date').textContent = dateStr;
+
+  if (opening && opening.headline) {
+    document.querySelector('.opening-headline').innerHTML = `\u201c${escHtml(opening.headline)}\u201d`;
+    document.querySelector('.opening-context').textContent = opening.context || '';
+    const pills = (opening.signal_pills || []);
+    const count = pills.length;
+    document.querySelector('.opening-signal-count').textContent = count > 0 ? `${count} HIGH-SIGNAL ITEM${count > 1 ? 'S' : ''} TODAY` : '';
+    document.querySelector('.opening-pills').innerHTML = pills.map(p =>
+      `<div class="signal-pill slide-in" style="animation-delay:${600 + pills.indexOf(p)*100}ms">
+        <span class="domain-dot ${domainClass(p.domain)}"></span>${escHtml(p.label)}
+      </div>`
+    ).join('');
+  } else {
+    // Fallback: use first newsletter summary
+    const topNl = (b.newsletters || []).find(n => n.has_new_edition && n.layer1);
+    document.querySelector('.opening-headline').innerHTML = topNl
+      ? `\u201c${escHtml(topNl.layer1.summary.split('.')[0])}.\u201d`
+      : '\u201cYour intelligence briefing is ready.\u201d';
+    document.querySelector('.opening-context').textContent = '';
+    const nlCount = (b.newsletters || []).filter(n => n.has_new_edition).length;
+    document.querySelector('.opening-signal-count').textContent = nlCount > 0 ? `${nlCount} SOURCE${nlCount > 1 ? 'S' : ''} TODAY` : '';
+    document.querySelector('.opening-pills').innerHTML = '';
+  }
+
+  // Sunday override
+  if (STATE.sundayMode && STATE.weeklyReport) {
+    const wr = STATE.weeklyReport;
+    document.querySelector('.opening-date').textContent = `SUNDAY  \u00b7  WEEK ${getWeekNumber()} COMPLETE`;
+    document.querySelector('.opening-headline').innerHTML = `<span class="t-signal">\u201c${escHtml(wr.one_conviction)}\u201d</span>`;
+    document.querySelector('.opening-headline').style.color = 'var(--signal)';
+    document.querySelector('.opening-context').textContent = wr.dominant_narrative || '';
+    document.querySelector('.opening-signal-count').textContent = 'YOUR 3 CHALLENGES THIS WEEK';
+    document.querySelector('.opening-pills').innerHTML = (wr.weekly_challenges || []).map((c, i) =>
+      `<div class="t-body reveal" style="animation-delay:${600+i*100}ms;margin-bottom:8px">${i+1}. ${escHtml(c)}</div>`
+    ).join('');
+    document.querySelector('.opening-enter').textContent = '\u2193 View weekly synthesis';
+    document.querySelector('.opening-enter').onclick = () => navigateTo('weekly');
+  }
+}
+
+function getWeekNumber() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const week1 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - week1) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+}
+
+// ── Briefing Feed ─────────────────────────────────────────
+function renderBriefing() {
+  const b = STATE.briefing;
+  const nls = (b.newsletters || []).filter(n => n.has_new_edition);
+  const pods = (b.podcasts || []);
+
+  // Merge and sort by signal strength
+  const items = [];
+  nls.forEach(n => items.push({ type: 'newsletter', data: n, signal: signalScore(n) }));
+  pods.forEach(p => items.push({ type: 'podcast', data: p, signal: signalScore(p) }));
+  items.sort((a, b) => b.signal - a.signal);
+
+  // Find highest signal item
+  const highestIdx = items.length > 0 ? 0 : -1;
+
+  const count = items.length;
+  const dateShort = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  document.querySelector('.feed-header').textContent = `TODAY'S BRIEFING  \u00b7  ${count} SOURCE${count !== 1 ? 'S' : ''}  \u00b7  ${dateShort.toUpperCase()}`;
+
+  const feed = document.getElementById('briefing-feed');
+  feed.innerHTML = items.map((item, idx) => {
+    const isHigh = idx === highestIdx && items.length > 1;
+    if (item.type === 'newsletter') return renderNewsletterCard(item.data, isHigh, idx);
+    return renderPodcastCard(item.data, isHigh, idx);
+  }).join('');
+}
+
+function signalScore(item) {
+  const triage = item.layer1?.triage_suggestion || item.triage_suggestion || '';
+  if (triage === 'act') return 3;
+  if (triage === 'save') return 2;
+  if (triage === 'noted') return 1;
+  return 0;
+}
+
+function renderNewsletterCard(nl, isHigh, idx) {
+  const cardId = `nl-${nl.id}`;
+  const l1 = nl.layer1 || {};
+  const l2 = nl.layer2 || {};
+  const triage = l1.triage_suggestion || 'noted';
+  const triageClass = triage === 'act' ? 'triage-act' : triage === 'save' ? 'triage-save' : triage === 'skip' ? 'triage-skip' : 'triage-noted';
+  const domain = nl.domain || '';
+  const signals = (l1.signals || []);
+
+  let l2Html = '';
+  if (l2.framing || l2.stories) {
+    l2Html = `<div class="expandable" id="expand-${cardId}"><div>
+      <hr class="card-divider">
+      ${l2.framing ? `<div class="l2-section"><div class="l2-label t-meta">HOW THEY FRAME IT</div><div class="t-body">${escHtml(l2.framing)}</div></div>` : ''}
+      ${(l2.stories || []).map(s => `
+        <div class="l2-section">
+          <div class="l2-label t-meta">KEY STORIES</div>
+          <div class="t-card-title" style="margin-bottom:4px">${escHtml(s.title)}</div>
+          <div class="t-body">${escHtml(s.content)}</div>
+        </div>
+      `).join('')}
+      ${(l2.data_points || []).length ? `<div class="l2-section"><div class="l2-label t-meta">DATA POINTS</div>${l2.data_points.map(d => `<div class="t-data">&rarr; ${escHtml(d)}</div>`).join('')}</div>` : ''}
+      ${(l2.implications_for_patrik || []).length ? `<div class="l2-section"><div class="l2-label t-meta">IMPLICATIONS FOR YOU</div>${l2.implications_for_patrik.map(i => `<div class="t-body">${escHtml(i)}</div>`).join('')}</div>` : ''}
+      ${l2.reflection_question ? `<div class="l2-quote">\u201c${escHtml(l2.reflection_question)}\u201d</div>` : ''}
+      <div class="l2-actions">
+        <button class="btn btn-signal" onclick="openChatWith('${cardId}','${escHtml(nl.id)}')">Ask Claude &rarr;</button>
+        <button class="btn" onclick="saveItem('newsletter','${escHtml(nl.id)}','${escHtml(l1.summary || '')}')">Save &#10022;</button>
+        <button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Collapse &uarr;</button>
+      </div>
+    </div></div>`;
+  }
+
+  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh ? 'high-signal' : ''}" ${triage === 'skip' ? 'style="opacity:0.5"' : ''}>
+    <div class="card-meta t-meta">FROM:${escHtml(nl.id).toUpperCase()}  \u00b7  ${domain}  \u00b7  ${nl.date ? new Date(nl.date).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
+    <div class="t-card-title">${escHtml(nl.id.charAt(0).toUpperCase() + nl.id.slice(1))}</div>
+    <div class="card-summary t-body">${escHtml(l1.summary)}</div>
+    <div style="display:flex;gap:4px;margin-bottom:8px">${signals.slice(0,3).map(() => `<span class="domain-dot ${domainClass(domain)}"></span>`).join('')}</div>
+    <div class="card-bottom">
+      <span class="triage ${triageClass}">${escHtml(triage)}</span>
+      ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Expand &darr;</button>` : ''}
+    </div>
+    ${l2Html}
+  </div>`;
+}
+
+function renderPodcastCard(pod, isHigh, idx) {
+  const cardId = `pod-${pod.id}`;
+  const l1 = pod.layer1 || {};
+  const l2 = pod.layer2 || {};
+  const domain = pod.domain || l1.domain_tags?.[0] || '';
+  const triage = l1.triage_recommendation || 'noted';
+  const triageClass = triage === 'Must Listen' ? 'triage-act' : triage === 'Skim' ? 'triage-noted' : 'triage-noted';
+  const guest = l1.guest_profile || pod.guest || '';
+  const keyStatements = l1.key_statements || [];
+  const duration = pod.duration || '';
+
+  // Layer 2
+  let l2Html = '';
+  if (l2.topics || l2.hypotheses) {
+    const topics = l2.topics || [];
+    const hypotheses = l2.hypotheses || [];
+    const domainConns = l2.domain_connections || {};
+    const recs = pod.recommendations || l2.recommendations || {};
+
+    l2Html = `<div class="expandable" id="expand-${cardId}"><div>
+      <hr class="card-divider">
+      ${l1.guest_profile ? `<div class="l2-section"><div class="l2-label t-meta">GUEST</div><div class="t-body">${escHtml(typeof l1.guest_profile === 'string' ? l1.guest_profile : l1.guest_profile.bio || '')}</div></div>` : ''}
+      ${topics.length ? `<div class="l2-section"><div class="l2-label t-meta">TOPICS</div>
+        ${topics.map((t, ti) => `
+          <div class="topic-header" onclick="this.classList.toggle('open');this.nextElementSibling.classList.toggle('open')">
+            <span class="arrow">&#9656;</span>
+            <span class="t-card-title" style="font-size:15px">${escHtml(t.title || t.topic || '')}</span>
+          </div>
+          <div class="expandable">
+            <div>
+              <div class="t-body" style="padding:8px 0 8px 20px">${escHtml(t.summary || '')}
+              ${(t.insights || []).map(i => `<div style="margin-top:4px">&middot; ${escHtml(i)}</div>`).join('')}
+              ${(t.quotes || []).map(q => `<div class="l2-quote" style="margin-top:8px">\u201c${escHtml(typeof q === 'string' ? q : q.text || '')}\u201d${q.speaker ? `<div class="t-meta" style="margin-top:4px">&mdash; ${escHtml(q.speaker)}</div>` : ''}</div>`).join('')}
+              </div>
+            </div>
+          </div>
+        `).join('')}
+      </div>` : ''}
+      ${hypotheses.length ? `<div class="l2-section"><div class="l2-label t-meta">HYPOTHESES &amp; BOLD CLAIMS</div>
+        ${hypotheses.map(h => `<div style="margin-bottom:8px">
+          <div style="color:var(--signal);font-weight:500">&#9889; ${escHtml(typeof h === 'string' ? h : h.claim || h.hypothesis || '')}</div>
+          ${h.speaker ? `<div class="t-meta">&mdash; ${escHtml(h.speaker)}</div>` : ''}
+          ${h.evidence ? `<div class="t-body" style="font-size:13px">Evidence: ${escHtml(h.evidence)}</div>` : ''}
+        </div>`).join('')}
+      </div>` : ''}
+      ${Object.keys(domainConns).length ? `<div class="l2-section"><div class="l2-label t-meta">DOMAIN CONNECTIONS</div>
+        ${Object.entries(domainConns).map(([d, text]) => `<div style="display:flex;gap:8px;margin-bottom:4px">
+          <span class="t-meta" style="color:${domainColor(d)};min-width:24px">${escHtml(d)}</span>
+          <span class="t-body" style="font-size:13px">${escHtml(typeof text === 'string' ? text : '')}</span>
+        </div>`).join('')}
+      </div>` : ''}
+      ${renderRecommendations(recs)}
+      <div class="l2-actions">
+        <button class="btn btn-signal" onclick="openChatWith('${cardId}','${escHtml(pod.name || pod.id)}')">Ask Claude &rarr;</button>
+        <button class="btn" onclick="saveItem('podcast','${escHtml(pod.id)}','${escHtml(l1.summary || '')}')">Save &#10022;</button>
+        <button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Collapse &uarr;</button>
+      </div>
+    </div></div>`;
+  }
+
+  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh ? 'high-signal' : ''}">
+    <div class="card-meta t-meta">PODCAST  \u00b7  ${escHtml(domain)}  \u00b7  ${escHtml(duration)}</div>
+    <div class="t-card-title">${escHtml(pod.name || pod.id)}</div>
+    ${pod.episode_title ? `<div class="t-body" style="font-size:13px;margin-top:2px">${escHtml(pod.episode_title)}</div>` : ''}
+    ${guest ? `<div class="t-body" style="font-size:13px;color:var(--text-tertiary);margin-top:2px">with ${escHtml(typeof guest === 'string' ? guest : guest.name || '')}</div>` : ''}
+    <div class="card-summary t-body">${escHtml(l1.summary || '')}</div>
+    ${keyStatements.length ? `<ul class="key-statements">${keyStatements.slice(0,3).map(s => `<li>\u201c${escHtml(s)}\u201d</li>`).join('')}</ul>` : ''}
+    <div class="card-bottom">
+      <span class="triage ${triageClass}">${escHtml(triage)}</span>
+      ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Deep Dive &darr;</button>` : ''}
+    </div>
+    ${l2Html}
+  </div>`;
+}
+
+function renderRecommendations(recs) {
+  if (!recs || typeof recs !== 'object') return '';
+  const emojiMap = { books: '\ud83d\udcd6', podcasts: '\ud83c\udf99', tools: '\ud83d\udee0', people: '\ud83d\udc64', articles_links: '\ud83d\udd17', music: '\ud83c\udfb5' };
+  let html = '';
+  const entries = Object.entries(recs).filter(([, items]) => Array.isArray(items) && items.length > 0);
+  if (!entries.length) return '';
+  html += '<div class="l2-section"><div class="l2-label t-meta">FOLLOW-UP</div>';
+  entries.forEach(([cat, items]) => {
+    items.forEach(item => {
+      const label = typeof item === 'string' ? item : item.title || item.name || '';
+      const by = item.mentioned_by ? ` (via ${item.mentioned_by})` : '';
+      const ctx = item.context ? ` \u2014 ${item.context}` : '';
+      html += `<div class="t-body" style="margin-bottom:4px">${emojiMap[cat] || '\u2022'} ${escHtml(label)}${escHtml(by)}${escHtml(ctx)}
+        <button class="btn btn-ghost" style="font-size:10px;padding:2px 6px" onclick="saveItem('rec','${escHtml(label)}','${escHtml(cat)}')">&#10022;</button>
+      </div>`;
+    });
+  });
+  html += '</div>';
+  return html;
+}
+
+function toggleExpand(cardId) {
+  const el = document.getElementById('expand-' + cardId);
+  if (!el) return;
+  el.classList.toggle('open');
+  if (el.classList.contains('open')) {
+    STATE.expandedCards.add(cardId);
+  } else {
+    STATE.expandedCards.delete(cardId);
+  }
+}
+
+// ── Grow ──────────────────────────────────────────────────
+function renderGrow() {
+  const g = STATE.briefing.growth;
+  if (!g) { document.getElementById('grow-cards').innerHTML = '<div class="t-body">No growth content today.</div>'; return; }
+
+  const days = ['SUNDAY','MONDAY','TUESDAY','WEDNESDAY','THURSDAY','FRIDAY','SATURDAY'];
+  document.querySelector('.grow-header').textContent = `GROW  \u00b7  ${days[new Date().getDay()]}`;
+
+  let html = '';
+
+  // Small Talk
+  if (g.small_talk_bridge) {
+    const st = g.small_talk_bridge;
+    html += `<div class="card reveal reveal-1">
+      <div class="t-meta">SMALL TALK</div>
+      <div class="t-card-title" style="margin:8px 0">${escHtml(st.topic_hook)}</div>
+      <div class="t-body">${escHtml(st.bridge)}</div>
+      ${st.when_to_use ? `<div class="t-meta" style="margin-top:12px">WHEN TO USE</div><div class="t-body" style="font-size:13px">${escHtml(st.when_to_use)}</div>` : ''}
+      <div style="margin-top:12px"><button class="btn btn-signal" onclick="openChatWith('grow-st','Small Talk: ${escHtml(st.topic_hook)}')">Ask Claude &rarr;</button></div>
+    </div>`;
+  }
+
+  // Arabic
+  if (g.arabic) {
+    const ar = g.arabic;
+    html += `<div class="card reveal reveal-2">
+      <div class="t-meta">ARABIC</div>
+      <div class="arabic-word">${escHtml(ar.word)}</div>
+      <div class="t-data" style="color:var(--signal)">${escHtml(ar.transliteration)}</div>
+      <div class="t-body" style="font-size:13px;color:var(--text-tertiary);margin-bottom:8px">${escHtml(ar.pronunciation)}</div>
+      <div class="t-body">${escHtml(ar.cultural_story)}</div>
+      ${ar.practice_sentence ? `<div class="t-data" style="margin-top:8px;font-style:italic">\u201c${escHtml(ar.practice_sentence)}\u201d</div>` : ''}
+      <div style="margin-top:12px"><button class="btn" onclick="saveItem('arabic','${escHtml(ar.word)}','${escHtml(ar.transliteration)} - ${escHtml(ar.literal_meaning || '')}')">Save &#10022;</button></div>
+    </div>`;
+  }
+
+  // Habitus
+  if (g.habitus) {
+    const h = g.habitus;
+    html += `<div class="card reveal reveal-3">
+      <div class="t-meta">DUBAI  \u00b7  ${escHtml((h.category||'').toUpperCase())}</div>
+      <div class="t-card-title" style="margin:8px 0">${escHtml(h.title)}</div>
+      <div class="t-body">${escHtml(h.content)}</div>
+      ${h.why_it_matters ? `<div class="t-data" style="color:var(--signal);margin-top:8px">&rarr; ${escHtml(h.why_it_matters)}</div>` : ''}
+      <div style="margin-top:12px"><button class="btn" onclick="saveItem('habitus','${escHtml(h.title)}','${escHtml(h.content?.substring(0,60) || '')}')">Save &#10022;</button></div>
+    </div>`;
+  }
+
+  // Mini Concept
+  if (g.mini_concept) {
+    const mc = g.mini_concept;
+    html += `<div class="card reveal reveal-4">
+      <div class="t-meta" style="color:${domainColor(mc.domain)}">CONCEPT  \u00b7  ${escHtml(mc.domain || '')}</div>
+      <div style="font-family:var(--font-display);font-size:20px;margin:8px 0">${escHtml(mc.concept_name)}</div>
+      <div class="t-body">${(mc.five_sentences || []).map(s => escHtml(s)).join('<br><br>')}</div>
+      <div style="margin-top:12px;display:flex;gap:12px">
+        <button class="btn btn-signal" onclick="openChatWith('grow-mc','Mini Concept: ${escHtml(mc.concept_name)}')">Ask Claude &rarr;</button>
+        <button class="btn" onclick="saveItem('concept','${escHtml(mc.concept_name)}','${escHtml(mc.domain || '')}')">Save &#10022;</button>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('grow-cards').innerHTML = html;
+}
+
+// ── Challenge ─────────────────────────────────────────────
+function renderChallenge() {
+  const wr = STATE.weeklyReport;
+  const challenges = wr?.weekly_challenges || [];
+  const area = document.getElementById('challenge-area');
+
+  if (!challenges.length) {
+    area.innerHTML = `<div class="challenge-screen">
+      <div class="t-meta">NO CHALLENGES SET</div>
+      <div class="challenge-text">Weekly challenges appear after your first Sunday synthesis.</div>
+    </div>
+    ${renderSavedSection()}`;
+    return;
+  }
+
+  const idx = STATE.currentChallenge;
+  const c = challenges[idx] || challenges[0];
+  const reflected = STATE.reflectedChallenges.has(idx);
+
+  area.innerHTML = `<div class="challenge-screen ${reflected ? 'challenge-reflected' : ''}">
+    <div class="t-meta reveal reveal-0">CHALLENGE  ${String(idx + 1).padStart(2, '0')} / ${String(challenges.length).padStart(2, '0')}</div>
+    <div class="challenge-text reveal reveal-1">\u201c${escHtml(c)}\u201d</div>
+    <div class="t-meta reveal reveal-2">${wr.week_of ? `SET ON SUNDAY  \u00b7  WEEK ${getWeekNumber()}` : ''}</div>
+    <div class="challenge-actions reveal reveal-3">
+      <button class="btn btn-signal" onclick="openChatWith('challenge','Challenge: ${escHtml(c)}')">Ask Claude about this</button>
+      <button class="btn" onclick="markReflected(${idx})">Mark Reflected &#10003;</button>
+    </div>
+    <div class="challenge-dots reveal reveal-4">
+      ${challenges.map((_, i) => `<div class="challenge-dot ${i === idx ? 'active' : ''}" onclick="showChallenge(${i})"></div>`).join('')}
+    </div>
+  </div>
+  ${renderSavedSection()}`;
+}
+
+function showChallenge(idx) {
+  STATE.currentChallenge = idx;
+  renderChallenge();
+}
+
+function markReflected(idx) {
+  STATE.reflectedChallenges.add(idx);
+  localStorage.setItem('mos-v2-reflected', JSON.stringify([...STATE.reflectedChallenges]));
+  AudioFX.saved();
+  // Move to next
+  const wr = STATE.weeklyReport;
+  if (wr && idx < (wr.weekly_challenges || []).length - 1) {
+    STATE.currentChallenge = idx + 1;
+  }
+  renderChallenge();
+}
+
+function renderSavedSection() {
+  if (!STATE.savedItems.length) return '';
+  return `<div class="saved-section">
+    <div class="t-meta" style="margin-bottom:12px">SAVED ITEMS  \u00b7  ${STATE.savedItems.length}</div>
+    ${STATE.savedItems.map((item, i) => `<div class="saved-item">
+      <div>
+        <div class="t-body" style="color:var(--text-primary);font-size:14px">${escHtml(item.title)}</div>
+        <div class="t-meta">${escHtml(item.source)} \u00b7 ${escHtml(item.date)}</div>
+      </div>
+      <span class="saved-item-remove" onclick="removeSaved(${i})">&times;</span>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── Weekly ────────────────────────────────────────────────
+function renderWeekly() {
+  const wr = STATE.weeklyReport;
+  if (!wr) return;
+  const area = document.getElementById('weekly-area');
+
+  const signalTracker = (wr.signal_tracker || []).map(s => {
+    const trendIcon = s.trend === 'accelerating' ? '\u2191' : s.trend === 'fading' ? '\u2193' : '\u2192';
+    return `<div class="signal-row">
+      <span class="t-meta" style="color:${domainColor(s.domain)};min-width:24px">${escHtml(s.domain)}</span>
+      <span class="t-body" style="flex:1">${escHtml(s.topic)}</span>
+      <span class="signal-trend">${trendIcon}</span>
+      <span class="t-meta">${s.appearances}x</span>
+    </div>`;
+  }).join('');
+
+  const domainPulse = wr.domain_pulse ? Object.entries(wr.domain_pulse).map(([d, text]) =>
+    `<div style="margin-bottom:12px">
+      <span class="t-meta" style="color:${domainColor(d)}">${escHtml(d)}</span>
+      <div class="t-body">${escHtml(text)}</div>
+    </div>`
+  ).join('') : '';
+
+  const challenges = (wr.weekly_challenges || []).map((c, i) =>
+    `<div class="t-body reveal" style="animation-delay:${200+i*80}ms;margin-bottom:8px">${i+1}. ${escHtml(c)}</div>`
+  ).join('');
+
+  const reading = wr.reading_behavior || {};
+
+  // Recommendations
+  let recsHtml = '';
+  if (wr.week_recommendations) {
+    const emojiMap = { books: '\ud83d\udcd6', podcasts: '\ud83c\udf99', tools: '\ud83d\udee0', people: '\ud83d\udc64', articles_links: '\ud83d\udd17', music: '\ud83c\udfb5' };
+    const entries = Object.entries(wr.week_recommendations).filter(([, items]) => Array.isArray(items) && items.length > 0);
+    if (entries.length) {
+      recsHtml = `<div class="t-meta" style="margin-top:var(--space-xl)">THIS WEEK'S RECOMMENDATIONS</div>`;
+      entries.forEach(([cat, items]) => {
+        items.forEach(item => {
+          const label = item.title || item.name || '';
+          const by = item.mentioned_by ? ` (via ${item.mentioned_by})` : '';
+          recsHtml += `<div class="t-body" style="margin-top:8px">${emojiMap[cat] || '\u2022'} ${escHtml(label)}${escHtml(by)}</div>`;
+        });
+      });
+    }
+  }
+
+  area.innerHTML = `
+    <div class="t-meta reveal reveal-0">SUNDAY  \u00b7  WEEK ${getWeekNumber()} COMPLETE</div>
+    <div style="margin-top:var(--space-sm)">
+      <div class="t-display-sm reveal reveal-1" style="color:var(--text-tertiary)">This week's conviction:</div>
+      <div class="weekly-conviction reveal reveal-2">\u201c${escHtml(wr.one_conviction)}\u201d</div>
+    </div>
+    <div class="t-body reveal reveal-3" style="max-width:460px">${escHtml(wr.dominant_narrative)}</div>
+
+    <div class="t-meta reveal reveal-4" style="margin-top:var(--space-xl)">SIGNAL TRACKER  \u00b7  ${(wr.signal_tracker||[]).length} THEMES</div>
+    <div style="margin-top:var(--space-sm)">${signalTracker}</div>
+
+    ${domainPulse ? `<div class="t-meta" style="margin-top:var(--space-xl)">DOMAIN PULSE</div><div style="margin-top:var(--space-sm)">${domainPulse}</div>` : ''}
+
+    <div class="t-meta" style="margin-top:var(--space-xl)">YOUR 3 CHALLENGES</div>
+    <div style="margin-top:var(--space-sm)">${challenges}</div>
+
+    <div class="t-meta" style="margin-top:var(--space-xl)">READING BEHAVIOR</div>
+    <div class="t-body" style="margin-top:var(--space-sm)">${escHtml(reading.observation || '')}</div>
+    <div class="card" style="margin-top:var(--space-sm);padding:16px;display:flex;justify-content:space-around;text-align:center">
+      <div><div class="t-meta">MOST ENGAGED</div><div class="t-body" style="color:var(--text-primary);margin-top:4px">${escHtml(reading.most_read_domain || '\u2014')}</div></div>
+      <div><div class="t-meta">MOST SKIPPED</div><div class="t-body" style="color:var(--text-primary);margin-top:4px">${escHtml(reading.skipped_most || '\u2014')}</div></div>
+    </div>
+
+    ${recsHtml}
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 5. SAVE / REMOVE
+// ═══════════════════════════════════════════════════════════════
+function saveItem(type, title, detail) {
+  STATE.savedItems.push({
+    type, title, detail,
+    source: type,
+    date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+  });
+  localStorage.setItem('mos-v2-saved', JSON.stringify(STATE.savedItems));
+  AudioFX.saved();
+  // Re-render challenge view if it's active (has saved section)
+  if (STATE.view === 'challenge') renderChallenge();
+}
+
+function removeSaved(idx) {
+  STATE.savedItems.splice(idx, 1);
+  localStorage.setItem('mos-v2-saved', JSON.stringify(STATE.savedItems));
+  if (STATE.view === 'challenge') renderChallenge();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 6. INTELLIGENCE CHAT
+// ═══════════════════════════════════════════════════════════════
+function buildSystemPrompt() {
+  const b = STATE.briefing;
+  const nlSummaries = (b.newsletters || [])
+    .filter(n => n.has_new_edition && n.layer1)
+    .map(n => `- ${n.id}: ${n.layer1.summary}`)
+    .join('\n');
+  const podSummaries = (b.podcasts || [])
+    .filter(p => p.layer1)
+    .map(p => `- ${p.name || p.id}: ${p.layer1.summary}`)
+    .join('\n');
+
+  return `You are the intelligence analyst for Morning OS. You help the user understand, question, and act on their daily intelligence briefing.
+
+## User Profile
+${STATE.userProfile}
+
+## User Model
+${STATE.userModel}
+
+## Today's Briefing (${b.generated_at})
+### Newsletters
+${nlSummaries || 'No newsletters today.'}
+
+### Podcasts
+${podSummaries || 'No podcasts today.'}
+
+### Calendar
+${JSON.stringify(b.calendar || {}, null, 2)}
+
+### Growth
+${JSON.stringify(b.growth || {}, null, 2)}
+
+Be concise, specific, and opinionated. Reference actual content from the briefing. Don't hedge.`;
+}
+
+function openChat(context) {
+  STATE.chatOpen = true;
+  STATE.chatContext = context || null;
+  document.getElementById('drawer-backdrop').classList.add('open');
+  document.getElementById('chat-drawer').classList.add('open');
+  AudioFX.chatOpen();
+
+  const label = context ? `INTELLIGENCE  \u00b7  ${context.title || ''}` : 'INTELLIGENCE';
+  document.getElementById('chat-header-label').textContent = label;
+
+  const input = document.getElementById('chat-input');
+  if (context && context.title) {
+    input.value = `Tell me more about ${context.title}. What are the deeper implications?`;
+  } else {
+    input.value = "What's the most important thing I should think about from today's briefing?";
+  }
+  input.select();
+  input.focus();
+}
+
+function openChatWith(cardId, title) {
+  openChat({ type: 'card', id: cardId, title });
+}
+
+function closeChat() {
+  STATE.chatOpen = false;
+  document.getElementById('drawer-backdrop').classList.remove('open');
+  document.getElementById('chat-drawer').classList.remove('open');
+}
+
+function handleChatKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+}
+
+async function sendChat() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  appendMessage('user', text);
+  STATE.chatMessages.push({ role: 'user', content: text });
+
+  const sendBtn = document.getElementById('chat-send');
+  sendBtn.disabled = true;
+
+  // Show thinking
+  const thinkingEl = appendMessage('assistant', '', true);
+
+  try {
+    if (!STATE.chatSystemPrompt) STATE.chatSystemPrompt = buildSystemPrompt();
+
+    const resp = await fetch('/.netlify/functions/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: STATE.chatSystemPrompt,
+        messages: STATE.chatMessages,
+      }),
+    });
+
+    const data = await resp.json();
+    const reply = data.text || data.content || 'No response.';
+
+    thinkingEl.remove();
+    appendMessage('assistant', reply);
+    STATE.chatMessages.push({ role: 'assistant', content: reply });
+  } catch (err) {
+    thinkingEl.remove();
+    appendMessage('assistant', 'Error connecting to intelligence service. Please try again.');
+  }
+
+  sendBtn.disabled = false;
+}
+
+function appendMessage(role, text, thinking) {
+  const container = document.getElementById('chat-messages');
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 'msg-user' : 'msg-assistant';
+  if (thinking) div.classList.add('msg-thinking');
+  div.textContent = text;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  return div;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 7. AUDIO FX
+// ═══════════════════════════════════════════════════════════════
+const AudioFX = {
+  ctx: null,
+  init() {
+    try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+  },
+  briefingReady() {
+    this._playTone(440, 0.03, 0.8, 'sine');
+    setTimeout(() => this._playTone(554, 0.02, 0.6, 'sine'), 120);
+  },
+  saved() { this._playTone(660, 0.04, 0.3, 'sine'); },
+  chatOpen() { this._playTone(330, 0.02, 0.4, 'sine'); },
+  sundayMode() {
+    this._playTone(370, 0.03, 1.2, 'sine');
+    setTimeout(() => this._playTone(440, 0.02, 1.0, 'sine'), 300);
+  },
+  _playTone(freq, gain, duration, type) {
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.connect(g); g.connect(this.ctx.destination);
+      osc.type = type; osc.frequency.value = freq;
+      g.gain.setValueAtTime(0, this.ctx.currentTime);
+      g.gain.linearRampToValueAtTime(gain, this.ctx.currentTime + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+      osc.start(this.ctx.currentTime);
+      osc.stop(this.ctx.currentTime + duration);
+    } catch {}
+  }
+};
+document.addEventListener('click', () => AudioFX.init(), { once: true });
+
+// ═══════════════════════════════════════════════════════════════
+// 8. INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  navigateTo('opening');
+  loadData();
+});
+</script>
+</body>
+</html>

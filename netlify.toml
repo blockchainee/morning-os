@@ -1,3 +1,18 @@
 [build]
   publish = "."
   functions = "netlify/functions"
+
+[[redirects]]
+  from = "/v2"
+  to = "/index-v2.html"
+  status = 200
+  
+[[redirects]]
+  from = "/v2/*"
+  to = "/index-v2.html"
+  status = 200
+
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
