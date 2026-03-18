@@ -186,6 +186,7 @@ html, body {
   text-transform: uppercase;
   letter-spacing: .8px;
   padding: 4px 2px 2px;
+  flex-shrink: 0;
 }
 
 /* ── BASE CARD ──────────────────────────────────────────────── */
@@ -196,10 +197,12 @@ html, body {
   overflow: hidden;
   transition: border-color .15s;
   box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  flex-shrink: 0;
 }
 .card, .newsletter-card, .podcast-card, .grow-card {
   overflow-wrap: break-word;
   word-break: break-word;
+  flex-shrink: 0;
 }
 .card:active { border-color: var(--border2); }
 
@@ -537,6 +540,7 @@ html, body {
   border-left: 3px solid var(--amber);
   padding: 10px 12px;
   display: flex; flex-direction: column; gap: 5px;
+  flex-shrink: 0;
 }
 .grow-lbl {
   font-size: 9px; font-weight: 700;
