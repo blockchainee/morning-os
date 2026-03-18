@@ -34,27 +34,42 @@ function loadWeeklyArchive() {
   }).filter(Boolean);
 }
 
-// ─── Claude API Call ─────────────────────────────────────────────────────────
+// ─── Claude API Call (with 429 retry) ────────────────────────────────────────
 async function claudeCall(system, user, maxTokens = 4000) {
-  const { default: fetch } = await import('node-fetch');
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      system,
-      messages: [{ role: 'user', content: user }],
-    }),
-  });
-  const data = await response.json();
-  const text = data.content?.[0]?.text || '';
-  // Strip markdown fences if present
-  return text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: 'user', content: user }],
+      }),
+    });
+
+    if (response.status === 429) {
+      const waitMs = Math.min(2000 * Math.pow(2, attempt - 1), 60000);
+      console.log(`[Weekly] Rate limited (attempt ${attempt}/5). Waiting ${Math.round(waitMs / 1000)}s...`);
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Claude API ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || '';
+    // Strip markdown fences if present
+    return text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+  }
+  throw new Error('[Weekly] Claude API rate limit: exhausted 5 retries');
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
@@ -247,8 +262,6 @@ Do not remove any sections. Do not add new top-level sections.`;
 
 // ─── Notion Writer ───────────────────────────────────────────────────────────
 async function writeWeeklyToNotion(synthesis, userModel) {
-  const { default: fetch } = await import('node-fetch');
-
   const blocks = [];
 
   // Header callout
