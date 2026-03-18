@@ -2,11 +2,20 @@
   publish = "."
   functions = "netlify/functions"
 
+[functions]
+  node_bundler = "esbuild"
+
+[functions."podcast-fetch"]
+  timeout = 26
+
+[functions."podcast-read"]
+  timeout = 10
+
 [[redirects]]
   from = "/v2"
   to = "/index-v2.html"
   status = 200
-  
+
 [[redirects]]
   from = "/v2/*"
   to = "/index-v2.html"

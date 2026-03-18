@@ -916,29 +916,61 @@ function buildNotionBlocks(briefing) {
     blocks.push(div());
   }
 
-  // Podcasts
+  // Podcasts (Phase E: layer1/layer2 format)
   if (briefing.podcasts?.length) {
     blocks.push(h2('🎙 Podcasts'));
     briefing.podcasts.forEach(pod => {
       if (!pod) return;
-      const d = pod.digest||{};
-      blocks.push(h3(`${pod.name}  ·  ${pod.domain||''}`));
-      if (pod.summary) blocks.push(para(pod.summary, {bold:true}));
-      (d.insights||[]).forEach(s => {
-        blocks.push(para(s.topic, {bold:true}));
-        (s.points||[]).forEach(p => blocks.push(bul(p)));
+      const l1 = pod.layer1||{}, l2 = pod.layer2||{}, speakers = pod.speakers||[], recs = pod.recommendations||{};
+      const domain = (l1.domain_tags||[]).join(' · ');
+      blocks.push(h3(`${pod.name}${domain ? '  ·  '+domain : ''}`));
+      if (pod.episode_title) blocks.push(para(`${pod.episode_title}${pod.published_date ? '  ·  '+pod.published_date : ''}`, {italic:true, color:'gray'}));
+      if (l1.guest_in_one_line) blocks.push(para(`Guest: ${l1.guest_in_one_line}`, {color:'blue'}));
+      if (l1.summary) blocks.push(para(l1.summary, {bold:true}));
+      if (l1.triage) blocks.push(para(`${l1.triage}${l1.signal_strength ? '  ·  '+l1.signal_strength+' signal' : ''}`, {color: l1.triage==='Must Listen' ? 'green' : 'gray'}));
+      if (l1.key_statements?.length) {
+        blocks.push(para('Key Statements:', {bold:true}));
+        l1.key_statements.forEach(s => blocks.push(bul(s)));
+      }
+      speakers.filter(s => s.role==='guest' && s.profile).forEach(s => {
+        blocks.push(callout(`${s.name}: ${s.profile}`, '👤'));
       });
-      if (d.quotes?.length) {
-        blocks.push(para('Best quotes:', {bold:true}));
-        d.quotes.forEach(q => blocks.push(quote(`"${q.text}"${q.speaker?' — '+q.speaker:''}`)));
+      (l2.topics||[]).forEach(t => {
+        blocks.push(para(t.title, {bold:true}));
+        if (t.summary) blocks.push(para(t.summary));
+        (t.insights||[]).forEach(i => blocks.push(bul(i)));
+        (t.quotes||[]).forEach(q => blocks.push(quote(`"${q.text}"${q.speaker ? ' — '+q.speaker : ''}`)));
+      });
+      if (l2.hypotheses?.length) {
+        blocks.push(para('Hypotheses & Bold Claims:', {bold:true}));
+        l2.hypotheses.forEach(h => blocks.push(bul(`⚡ ${h.statement}${h.speaker ? ' — '+h.speaker : ''}${h.evidence ? ' ('+h.evidence+')' : ''}`)));
       }
-      if (d.recommendations?.length) {
+      const emojiMap = {books:'📚',podcasts:'🎙',tools:'🛠',people:'👤',articles_links:'🔗',music:'🎵'};
+      const recEntries = Object.entries(recs).filter(([,v]) => Array.isArray(v) && v.length && v.some(item => (item.title||item.name||'').trim()));
+      if (recEntries.length) {
         blocks.push(para('Recommendations:', {bold:true}));
-        d.recommendations.forEach(r => blocks.push(bul(`[${r.type}] ${r.name}${r.note?' — '+r.note:''}`)));
+        recEntries.forEach(([cat, items]) => {
+          items.filter(item => (item.title||item.name||'').trim()).forEach(item => {
+            const label = item.title||item.name;
+            const author = item.author ? ` by ${item.author}` : '';
+            const via = item.mentioned_by ? ` (via ${item.mentioned_by})` : '';
+            blocks.push(bul(`${emojiMap[cat]||'•'} ${label}${author}${via}`));
+          });
+        });
       }
-      if (d.reflection_question) blocks.push(callout(d.reflection_question, '🤔'));
+      if (l2.reflection) blocks.push(callout(l2.reflection, '🤔'));
       blocks.push(div());
     });
+    // Machine-readable JSON code block for podcast-read.js
+    const podcastJson = JSON.stringify(briefing.podcasts);
+    // Notion code block content max 2000 chars per rich_text — split if needed
+    const chunks = [];
+    for (let i = 0; i < podcastJson.length; i += 2000) chunks.push(podcastJson.slice(i, i+2000));
+    blocks.push({ object:'block', type:'code', code: {
+      rich_text: chunks.map(c => rt(c)),
+      language: 'json',
+      caption: [rt('<!-- PODCAST_JSON -->')]
+    }});
   }
 
   // Grow

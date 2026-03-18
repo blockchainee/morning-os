@@ -1460,75 +1460,157 @@ function renderPodcasts(el) {
 
   const cache = getPodcastCache();
   const now = Date.now();
-  const toFetch = [];
 
-  // Render cached cards immediately, skeletons for the rest
+  // Check if ALL podcasts are cached and fresh
+  const allCached = activePods.every(pod => {
+    const cached = cache[pod.name];
+    return cached && cached.data && (now - cached.fetchedAt < PODCAST_CACHE_TTL);
+  });
+
+  if (allCached) {
+    // Render all from cache immediately
+    activePods.forEach((pod, i) => {
+      const card = renderPodcastCard(cache[pod.name].data);
+      card.style.animationDelay = `${i * 40}ms`;
+      el.appendChild(card);
+    });
+    return;
+  }
+
+  // Show skeletons for all pods while we fetch from Notion
+  const skeletonContainer = document.createElement('div');
+  skeletonContainer.id = 'podcast-skeletons';
   activePods.forEach((pod, i) => {
     const cached = cache[pod.name];
     const isFresh = cached && cached.data && (now - cached.fetchedAt < PODCAST_CACHE_TTL);
-
     if (isFresh) {
       const card = renderPodcastCard(cached.data);
       card.style.animationDelay = `${i * 40}ms`;
-      el.appendChild(card);
+      skeletonContainer.appendChild(card);
     } else {
-      // Skeleton loading card
       const sk = document.createElement('div');
       sk.className = 'card card-enter';
       sk.id = `pod-skeleton-${i}`;
+      sk.dataset.podName = pod.name;
       sk.style.animationDelay = `${i * 40}ms`;
       sk.innerHTML = `<div style="padding:16px">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
           <div style="width:40px;height:40px;border-radius:10px;background:var(--bg3);animation:pulse 1.5s ease-in-out infinite"></div>
           <div style="flex:1">
             <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(pod.name)}</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">Fetching latest episode…</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Loading from Notion…</div>
           </div>
         </div>
         <div style="height:10px;background:var(--bg3);border-radius:4px;width:90%;animation:pulse 1.5s ease-in-out infinite"></div>
         <div style="height:10px;background:var(--bg3);border-radius:4px;width:70%;margin-top:6px;animation:pulse 1.5s ease-in-out infinite"></div>
-        <div style="height:10px;background:var(--bg3);border-radius:4px;width:50%;margin-top:6px;animation:pulse 1.5s ease-in-out infinite"></div>
       </div>`;
-      el.appendChild(sk);
-      toFetch.push({ pod, index: i, skeletonId: `pod-skeleton-${i}` });
+      skeletonContainer.appendChild(sk);
     }
   });
+  el.appendChild(skeletonContainer);
 
-  // Fetch missing podcasts in parallel
-  if (toFetch.length) {
-    toFetch.forEach(({ pod, index, skeletonId }) => {
-      fetch('/.netlify/functions/podcast-fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ podcast_name: pod.name }),
-      })
-        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
-        .then(data => {
-          // Save to cache
-          const c = getPodcastCache();
-          c[pod.name] = { data, fetchedAt: Date.now() };
-          setPodcastCache(c);
+  // Step 1: Try podcast-read (Notion) → Step 2: Fallback to briefing.json → Step 3: Fallback to podcast-fetch
+  fetchPodcastsFromNotion(activePods, cache);
+}
 
-          // Replace skeleton with real card
-          const skeleton = document.getElementById(skeletonId);
-          if (skeleton && skeleton.parentNode) {
-            const card = renderPodcastCard(data);
-            card.style.animationDelay = `${index * 40}ms`;
-            skeleton.parentNode.replaceChild(card, skeleton);
-          }
-        })
-        .catch(err => {
-          console.error(`Podcast fetch failed for ${pod.name}:`, err);
-          const skeleton = document.getElementById(skeletonId);
-          if (skeleton) {
-            skeleton.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">
-              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">${esc(pod.name)}</div>
-              Could not load episode. <button onclick="renderTab()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Retry</button>
-            </div>`;
-          }
+async function fetchPodcastsFromNotion(activePods, cache) {
+  const activeNames = new Set(activePods.map(p => p.name.toLowerCase()));
+
+  try {
+    // Step 1: Read from Notion via podcast-read
+    const resp = await fetch('/.netlify/functions/podcast-read');
+    if (resp.ok) {
+      const { podcasts } = await resp.json();
+      if (podcasts && podcasts.length) {
+        const newCache = getPodcastCache();
+        const now = Date.now();
+        let matched = 0;
+        podcasts.forEach(pod => {
+          if (!pod || !pod.name) return;
+          newCache[pod.name] = { data: pod, fetchedAt: now };
+          matched++;
+          replacePodcastSkeleton(pod);
         });
-    });
+        setPodcastCache(newCache);
+        if (matched > 0) {
+          // Fill any remaining skeletons with podcast-fetch fallback
+          fillRemainingSkeletons(activePods);
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('podcast-read failed:', e);
   }
+
+  // Step 2: Fallback to briefing.json podcasts (already loaded in STATE)
+  try {
+    const briefingPods = STATE.briefing?.podcasts;
+    if (briefingPods && briefingPods.length) {
+      const newCache = getPodcastCache();
+      const now = Date.now();
+      briefingPods.forEach(pod => {
+        if (!pod || !pod.name) return;
+        newCache[pod.name] = { data: pod, fetchedAt: now };
+        replacePodcastSkeleton(pod);
+      });
+      setPodcastCache(newCache);
+      fillRemainingSkeletons(activePods);
+      return;
+    }
+  } catch (e) {
+    console.warn('briefing.json podcast fallback failed:', e);
+  }
+
+  // Step 3: Fallback to individual podcast-fetch calls
+  fillRemainingSkeletons(activePods);
+}
+
+function replacePodcastSkeleton(podData) {
+  // Find skeleton by pod name
+  const container = document.getElementById('podcast-skeletons');
+  if (!container) return;
+  const skeletons = container.querySelectorAll('[data-pod-name]');
+  for (const sk of skeletons) {
+    if (sk.dataset.podName.toLowerCase() === (podData.name||'').toLowerCase()) {
+      const card = renderPodcastCard(podData);
+      sk.parentNode.replaceChild(card, sk);
+      return;
+    }
+  }
+  // No matching skeleton — might be a podcast not in active list but in Notion
+}
+
+function fillRemainingSkeletons(activePods) {
+  const container = document.getElementById('podcast-skeletons');
+  if (!container) return;
+  const remaining = container.querySelectorAll('[data-pod-name]');
+  remaining.forEach(sk => {
+    const podName = sk.dataset.podName;
+    // Try podcast-fetch as last resort
+    fetch('/.netlify/functions/podcast-fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ podcast_name: podName }),
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(data => {
+        const c = getPodcastCache();
+        c[podName] = { data, fetchedAt: Date.now() };
+        setPodcastCache(c);
+        if (sk.parentNode) {
+          const card = renderPodcastCard(data);
+          sk.parentNode.replaceChild(card, sk);
+        }
+      })
+      .catch(err => {
+        console.error(`podcast-fetch failed for ${podName}:`, err);
+        sk.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">${esc(podName)}</div>
+          Could not load episode. <button onclick="renderTab()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Retry</button>
+        </div>`;
+      });
+  });
 }
 
 function renderPodcastCard(pod) {
