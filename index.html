@@ -308,6 +308,9 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 .triage-row { display: flex; gap: 4px; }
 .tq {
@@ -331,11 +334,12 @@ html, body {
   font-size: 11px;
   color: var(--accent);
   font-weight: 600;
-  background: none;
-  border: none;
+  background: var(--accent-bg);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
   cursor: pointer;
   font-family: var(--font-sans);
-  padding: 3px 0;
+  padding: 4px 10px;
 }
 .no-edition {
   padding: 6px 12px 10px;
@@ -2042,7 +2046,12 @@ async function loadBriefing() {
   } catch(e) { console.warn('Static briefing load failed:', e); }
   btn.disabled = false;
   btn.textContent = 'Refresh';
-  // No briefing available — show inline hint
+  // Static fetch failed — but if we already have briefing data from localStorage, just use that
+  if (STATE.briefing) {
+    renderTab();
+    return;
+  }
+  // Truly no data at all — show hint
   const content = document.getElementById('tab-content');
   let hint = document.getElementById('no-briefing-hint');
   if (!hint) {
@@ -2089,16 +2098,16 @@ function dayOfWeek() {
 load();
 mergeAndCacheNewsletters();
 
-// Load cached meta pills
+// Render initial UI from localStorage cache
 if (STATE.briefing) {
   renderMetaPills(STATE.briefing.calendar, STATE.briefing.birthdays);
+  document.getElementById('gen-btn').textContent = 'Refresh';
 } else {
   renderMetaPills(null, null);
 }
-
 renderTab();
 
-// Auto-load briefing from static JSON on startup
+// Then try to refresh from static briefing.json
 loadBriefing();
 
 // Sync podcast config from repo (merges remote selections into local state)
