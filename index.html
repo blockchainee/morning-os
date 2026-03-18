@@ -42,8 +42,9 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 html, body {
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  height: auto;
+  overflow-x: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -55,11 +56,10 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 100vh;
   max-width: 430px;
   margin: 0 auto;
   position: relative;
-  overflow: hidden;
 }
 
 /* ── STATUS BAR ─────────────────────────────────────────────── */
@@ -71,6 +71,9 @@ html, body {
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
 }
 .sb-left { display: flex; flex-direction: column; gap: 2px; }
 .sb-date { font-family: var(--font-serif); font-size: 19px; color: var(--text); letter-spacing: -.2px; }
@@ -134,10 +137,8 @@ html, body {
 /* ── TAB CONTENT ────────────────────────────────────────────── */
 #tab-content {
   flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding: 12px 12px 4px;
+  overflow: visible;
+  padding: 12px 12px 16px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -152,6 +153,9 @@ html, body {
   flex-shrink: 0;
   padding-bottom: env(safe-area-inset-bottom, 0);
   box-shadow: 0 -1px 0 rgba(0,0,0,.04);
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
 }
 .tab-btn {
   flex: 1;
@@ -249,7 +253,7 @@ html, body {
 
 /* ── NEWSLETTER CARD ────────────────────────────────────────── */
 .ncard-header {
-  padding: 9px 12px 8px;
+  padding: 12px 14px 10px;
   cursor: pointer;
   user-select: none;
 }
@@ -286,13 +290,14 @@ html, body {
 }
 .signal-row {
   display: flex;
-  gap: 4px;
+  gap: 6px;
   flex-wrap: wrap;
-  margin-bottom: 7px;
+  margin-bottom: 10px;
 }
 .sig-chip {
-  font-size: 10px;
-  padding: 2px 7px;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 4px 9px;
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 6px;
