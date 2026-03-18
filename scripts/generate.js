@@ -443,25 +443,36 @@ async function claudeCall(userContent, maxTokens = 2000) {
     system: BASE_SYSTEM,
     messages: [{ role: 'user', content: userContent }],
   };
-  const resp = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(body),
-  });
-  if (!resp.ok) throw new Error(`Claude API ${resp.status}: ${(await resp.text()).slice(0,200)}`);
-  const data = await resp.json();
-  const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
-  const clean = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
-  try { return JSON.parse(clean); }
-  catch {
-    const match = clean.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
-    throw new Error(`JSON parse failed: ${clean.slice(0,300)}`);
+  // Retry with exponential backoff on rate limits (429)
+  for (let attempt = 1; attempt <= 5; attempt++) {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+    if (resp.status === 429) {
+      const retryAfter = resp.headers.get('retry-after');
+      const waitMs = retryAfter ? parseInt(retryAfter) * 1000 : Math.min(2000 * Math.pow(2, attempt - 1), 60000);
+      log(`[Claude] Rate limited (429). Waiting ${Math.round(waitMs/1000)}s before retry ${attempt}/5...`);
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
+    }
+    if (!resp.ok) throw new Error(`Claude API ${resp.status}: ${(await resp.text()).slice(0,200)}`);
+    const data = await resp.json();
+    const text = data.content.filter(b => b.type === 'text').map(b => b.text).join('');
+    const clean = text.replace(/```json\s*/gi,'').replace(/```\s*/g,'').trim();
+    try { return JSON.parse(clean); }
+    catch {
+      const match = clean.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+      throw new Error(`JSON parse failed: ${clean.slice(0,300)}`);
+    }
   }
+  throw new Error('Claude API rate limit: exhausted 5 retries');
 }
 
 // ── Newsletter config ─────────────────────────────────────────
@@ -643,31 +654,41 @@ function extractGuestHint(description, transcriptOpening) {
 }
 
 async function searchGuestProfile(guestName) {
-  try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_KEY,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 300,
-        tools: [{ type: 'web_search_20250305', name: 'web_search' }],
-        messages: [{
-          role: 'user',
-          content: `Search for "${guestName}" and return a 2-3 sentence factual profile: who they are, what they're known for, their most notable work or role. Be concise and direct.`
-        }]
-      }),
-    });
-    const data = await resp.json();
-    const textBlock = data.content?.find(b => b.type === 'text');
-    return textBlock?.text || '';
-  } catch (err) {
-    log(`[Guest Profile] Web search failed for ${guestName}: ${err.message}`);
-    return '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_KEY,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 300,
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }],
+          messages: [{
+            role: 'user',
+            content: `Search for "${guestName}" and return a 2-3 sentence factual profile: who they are, what they're known for, their most notable work or role. Be concise and direct.`
+          }]
+        }),
+      });
+      if (resp.status === 429) {
+        const waitMs = Math.min(2000 * Math.pow(2, attempt - 1), 30000);
+        log(`[Guest Profile] Rate limited. Waiting ${Math.round(waitMs/1000)}s...`);
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
+      const data = await resp.json();
+      const textBlock = data.content?.find(b => b.type === 'text');
+      return textBlock?.text || '';
+    } catch (err) {
+      log(`[Guest Profile] Web search failed for ${guestName}: ${err.message}`);
+      return '';
+    }
   }
+  log(`[Guest Profile] Rate limit exhausted for ${guestName}`);
+  return '';
 }
 
 async function claudePodcastAnalysis(podcastName, podcastId, transcript, meta, guestWebProfile, primaryDomain) {
@@ -1155,12 +1176,23 @@ async function main() {
 
   log(`Newsletters (${discoveryMode}): ${activeNewsletters.map(n=>n.name).join(', ')}`);
 
-  // Parallel fetches
-  const [calResult, growthResult, ...nlResults] = await Promise.allSettled([
+  // Calendar + Growth in parallel (no Claude API calls)
+  const [calResult, growthResult] = await Promise.allSettled([
     fetchCalendar(),
     fetchGrowth(),
-    ...activeNewsletters.map(nl => fetchNewsletter(nl)),
   ]);
+
+  // Newsletters sequentially to respect Claude API rate limits (30k tokens/min)
+  const nlResults = [];
+  for (const nl of activeNewsletters) {
+    try {
+      const result = await fetchNewsletter(nl);
+      nlResults.push({ status: 'fulfilled', value: result });
+    } catch (err) {
+      log(`Newsletter ${nl.name} ERROR: ${err.message}`);
+      nlResults.push({ status: 'rejected', reason: err });
+    }
+  }
 
   // Podcasts sequential
   const podcasts = [];
