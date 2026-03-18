@@ -170,9 +170,8 @@ async function discoverNewsletters() {
   }
 
   try {
-    // Search Gmail for newsletters from last 24h (all relevant categories + primary inbox)
+    // Search two Gmail categories for newsletters from last 24h
     const queries = [
-      'newer_than:1d category:primary',
       'newer_than:1d category:updates',
       'newer_than:1d category:promotions',
     ];
@@ -195,7 +194,7 @@ async function discoverNewsletters() {
     for (const msgId of uniqueIds) {
       try {
         const msgResp = await fetch(
-          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`,
+          `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgId}?format=metadata&metadataHeaders=From&metadataHeaders=Subject&metadataHeaders=List-Unsubscribe`,
           { headers: { 'Authorization': `Bearer ${token}` } }
         );
         if (!msgResp.ok) continue;
@@ -203,6 +202,10 @@ async function discoverNewsletters() {
         const headers = msg.payload?.headers || [];
         const from = headers.find(h => h.name === 'From')?.value || '';
         const subject = headers.find(h => h.name === 'Subject')?.value || '';
+        const listUnsub = headers.find(h => h.name === 'List-Unsubscribe')?.value || '';
+
+        // Only keep messages with List-Unsubscribe header (newsletter signal)
+        if (!listUnsub) continue;
 
         // Extract sender email and display name
         const emailMatch = from.match(/<([^>]+)>/);
@@ -226,7 +229,7 @@ async function discoverNewsletters() {
 
     // Cap at 15 newsletters
     const discovered = [...senderMap.values()].slice(0, 15);
-    log(`[Discovery] ${discovered.length} newsletters after dedup by sender domain`);
+    log(`[Discovery] ${discovered.length} newsletters after List-Unsubscribe filter`);
 
     // Fetch full body for each discovered newsletter
     const results = [];
