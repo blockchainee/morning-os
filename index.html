@@ -735,6 +735,10 @@ html, body {
   0%,100% { opacity: .6; }
   50%      { opacity: 1; }
 }
+@keyframes pulse {
+  0%,100% { opacity: .3; }
+  50%      { opacity: .6; }
+}
 
 /* ── INTELLIGENCE CHAT DRAWER ──────────────────────────────── */
 .drawer {
@@ -1426,29 +1430,105 @@ function renderNewsletterCard(nl, data) {
 // ═══════════════════════════════════════════════════════════════
 // PODCASTS TAB
 // ═══════════════════════════════════════════════════════════════
+// Podcast cache: { "PodcastName": { data: {...}, fetchedAt: timestamp } }
+const PODCAST_CACHE_KEY = 'mos-podcast-cache';
+const PODCAST_CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+function getPodcastCache() {
+  try { return JSON.parse(localStorage.getItem(PODCAST_CACHE_KEY) || '{}'); } catch { return {}; }
+}
+function setPodcastCache(cache) {
+  try { localStorage.setItem(PODCAST_CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
 function renderPodcasts(el) {
-  const b = STATE.briefing;
   const activePods = STATE.podcasts.filter(p => p.on);
 
   el.appendChild(secLabel(`Podcasts · ${activePods.length} tracked`));
 
-  if (!b || !b.podcasts || !b.podcasts.length) {
+  if (!activePods.length) {
     const ph = document.createElement('div');
     ph.className = 'card';
     ph.innerHTML = `<div style="padding:20px;text-align:center;color:var(--text3);font-size:13px">
       <div style="font-size:28px;margin-bottom:8px;opacity:.4">🎙</div>
-      Podcast transcripts will appear here after generating.<br>
-      <span style="font-size:11px;color:var(--text3)">Manage tracked shows in Settings</span>
+      No podcasts selected.<br>
+      <span style="font-size:11px;color:var(--text3)">Tap ⚙ to search and add shows</span>
     </div>`;
     el.appendChild(ph);
     return;
   }
 
-  b.podcasts.forEach((pod, i) => {
-    const card = renderPodcastCard(pod);
-    card.style.animationDelay = `${i * 40}ms`;
-    el.appendChild(card);
+  const cache = getPodcastCache();
+  const now = Date.now();
+  const toFetch = [];
+
+  // Render cached cards immediately, skeletons for the rest
+  activePods.forEach((pod, i) => {
+    const cached = cache[pod.name];
+    const isFresh = cached && cached.data && (now - cached.fetchedAt < PODCAST_CACHE_TTL);
+
+    if (isFresh) {
+      const card = renderPodcastCard(cached.data);
+      card.style.animationDelay = `${i * 40}ms`;
+      el.appendChild(card);
+    } else {
+      // Skeleton loading card
+      const sk = document.createElement('div');
+      sk.className = 'card card-enter';
+      sk.id = `pod-skeleton-${i}`;
+      sk.style.animationDelay = `${i * 40}ms`;
+      sk.innerHTML = `<div style="padding:16px">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+          <div style="width:40px;height:40px;border-radius:10px;background:var(--bg3);animation:pulse 1.5s ease-in-out infinite"></div>
+          <div style="flex:1">
+            <div style="font-size:13px;font-weight:600;color:var(--text)">${esc(pod.name)}</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Fetching latest episode…</div>
+          </div>
+        </div>
+        <div style="height:10px;background:var(--bg3);border-radius:4px;width:90%;animation:pulse 1.5s ease-in-out infinite"></div>
+        <div style="height:10px;background:var(--bg3);border-radius:4px;width:70%;margin-top:6px;animation:pulse 1.5s ease-in-out infinite"></div>
+        <div style="height:10px;background:var(--bg3);border-radius:4px;width:50%;margin-top:6px;animation:pulse 1.5s ease-in-out infinite"></div>
+      </div>`;
+      el.appendChild(sk);
+      toFetch.push({ pod, index: i, skeletonId: `pod-skeleton-${i}` });
+    }
   });
+
+  // Fetch missing podcasts in parallel
+  if (toFetch.length) {
+    toFetch.forEach(({ pod, index, skeletonId }) => {
+      fetch('/.netlify/functions/podcast-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ podcast_name: pod.name }),
+      })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+        .then(data => {
+          // Save to cache
+          const c = getPodcastCache();
+          c[pod.name] = { data, fetchedAt: Date.now() };
+          setPodcastCache(c);
+
+          // Replace skeleton with real card
+          const skeleton = document.getElementById(skeletonId);
+          if (skeleton && skeleton.parentNode) {
+            const card = renderPodcastCard(data);
+            card.style.animationDelay = `${index * 40}ms`;
+            skeleton.parentNode.replaceChild(card, skeleton);
+          }
+        })
+        .catch(err => {
+          console.error(`Podcast fetch failed for ${pod.name}:`, err);
+          const skeleton = document.getElementById(skeletonId);
+          if (skeleton) {
+            skeleton.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">
+              <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">${esc(pod.name)}</div>
+              Could not load episode. <button onclick="renderTab()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Retry</button>
+            </div>`;
+          }
+        });
+    });
+  }
 }
 
 function renderPodcastCard(pod) {
