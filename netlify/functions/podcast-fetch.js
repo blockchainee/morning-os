@@ -1,3 +1,185 @@
+// Notion block helpers (same pattern as generate.js)
+const rt = (text, opts = {}) => ({
+  type: 'text',
+  text: { content: String(text || '').slice(0, 2000) },
+  annotations: { bold: opts.bold || false, italic: opts.italic || false, color: opts.color || 'default' },
+});
+const h3 = t => ({ object: 'block', type: 'heading_3', heading_3: { rich_text: [rt(t)] } });
+const para = (t, o = {}) => ({ object: 'block', type: 'paragraph', paragraph: { rich_text: [rt(t, o)] } });
+const bul = (t, o = {}) => ({ object: 'block', type: 'bulleted_list_item', bulleted_list_item: { rich_text: [rt(t, o)] } });
+const divider = () => ({ object: 'block', type: 'divider', divider: {} });
+const callout = (t, e = '📌') => ({ object: 'block', type: 'callout', callout: { rich_text: [rt(t)], icon: { type: 'emoji', emoji: e }, color: 'gray_background' } });
+const quote = t => ({ object: 'block', type: 'quote', quote: { rich_text: [rt(t, { italic: true })] } });
+
+function buildPodcastBlocks(pod) {
+  const blocks = [];
+  const l1 = pod.layer1 || {};
+  const l2 = pod.layer2 || {};
+  const speakers = pod.speakers || [];
+  const recs = pod.recommendations || {};
+
+  // Header
+  const domain = (l1.domain_tags || []).join(' · ');
+  blocks.push(h3(`${pod.name}${domain ? '  ·  ' + domain : ''}`));
+
+  // Episode info
+  if (pod.episode_title) {
+    blocks.push(para(`${pod.episode_title}${pod.published_date ? '  ·  ' + pod.published_date : ''}`, { italic: true, color: 'gray' }));
+  }
+
+  // Guest
+  if (l1.guest_in_one_line) {
+    blocks.push(para(`Guest: ${l1.guest_in_one_line}`, { color: 'blue' }));
+  }
+
+  // Summary
+  if (l1.summary) blocks.push(para(l1.summary, { bold: true }));
+
+  // Triage + signal
+  if (l1.triage) {
+    blocks.push(para(`${l1.triage}${l1.signal_strength ? '  ·  ' + l1.signal_strength + ' signal' : ''}`, { color: l1.triage === 'Must Listen' ? 'green' : 'gray' }));
+  }
+
+  // Key statements
+  if (l1.key_statements && l1.key_statements.length) {
+    blocks.push(para('Key Statements:', { bold: true }));
+    l1.key_statements.forEach(s => blocks.push(bul(s)));
+  }
+
+  // Speakers
+  if (speakers.length) {
+    speakers.filter(s => s.role === 'guest' && s.profile).forEach(s => {
+      blocks.push(callout(`${s.name}: ${s.profile}`, '👤'));
+    });
+  }
+
+  // Topics
+  if (l2.topics && l2.topics.length) {
+    l2.topics.forEach(t => {
+      blocks.push(para(t.title, { bold: true }));
+      if (t.summary) blocks.push(para(t.summary));
+      (t.insights || []).forEach(i => blocks.push(bul(i)));
+      (t.quotes || []).forEach(q => {
+        blocks.push(quote(`"${q.text}"${q.speaker ? ' — ' + q.speaker : ''}`));
+      });
+    });
+  }
+
+  // Hypotheses
+  if (l2.hypotheses && l2.hypotheses.length) {
+    blocks.push(para('Hypotheses & Bold Claims:', { bold: true }));
+    l2.hypotheses.forEach(h => {
+      blocks.push(bul(`⚡ ${h.statement}${h.speaker ? ' — ' + h.speaker : ''}${h.evidence ? ' (Evidence: ' + h.evidence + ')' : ''}`));
+    });
+  }
+
+  // Recommendations
+  const emojiMap = { books: '📚', podcasts: '🎙', tools: '🛠', people: '👤', articles_links: '🔗', music: '🎵' };
+  const recEntries = Object.entries(recs).filter(([, v]) => Array.isArray(v) && v.length > 0 && v.some(item => (item.title || item.name || '').trim()));
+  if (recEntries.length) {
+    blocks.push(para('Recommendations:', { bold: true }));
+    recEntries.forEach(([cat, items]) => {
+      items.filter(item => (item.title || item.name || '').trim()).forEach(item => {
+        const label = item.title || item.name;
+        const author = item.author ? ` by ${item.author}` : '';
+        const via = item.mentioned_by ? ` (via ${item.mentioned_by})` : '';
+        blocks.push(bul(`${emojiMap[cat] || '•'} ${label}${author}${via}`));
+      });
+    });
+  }
+
+  // Reflection
+  if (l2.reflection) blocks.push(callout(l2.reflection, '🤔'));
+
+  blocks.push(divider());
+  return blocks;
+}
+
+async function writePodcastToNotion(podcast) {
+  const NOTION_KEY = process.env.NOTION_API_KEY;
+  const NOTION_DB_ID = process.env.NOTION_DATABASE_ID;
+
+  if (!NOTION_KEY || !NOTION_DB_ID) {
+    console.log('Notion credentials not configured — skipping Notion write');
+    return null;
+  }
+
+  const notionHeaders = {
+    'Authorization': `Bearer ${NOTION_KEY}`,
+    'Content-Type': 'application/json',
+    'Notion-Version': '2022-06-28',
+  };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const pageTitle = `Podcasts · ${today}`;
+
+  try {
+    // Check for existing Podcasts page today
+    const queryResp = await fetch(`https://api.notion.com/v1/databases/${NOTION_DB_ID}/query`, {
+      method: 'POST',
+      headers: notionHeaders,
+      body: JSON.stringify({
+        filter: {
+          and: [
+            { property: 'Date', date: { equals: today } },
+            { property: 'Name', title: { starts_with: 'Podcasts' } },
+          ],
+        },
+        page_size: 1,
+      }),
+    });
+
+    const blocks = buildPodcastBlocks(podcast);
+
+    if (queryResp.ok) {
+      const existing = await queryResp.json();
+      if (existing.results && existing.results.length > 0) {
+        // Append to existing page
+        const pageId = existing.results[0].id;
+        const appendResp = await fetch(`https://api.notion.com/v1/blocks/${pageId}/children`, {
+          method: 'PATCH',
+          headers: notionHeaders,
+          body: JSON.stringify({ children: blocks }),
+        });
+        if (appendResp.ok) {
+          console.log(`Appended ${podcast.name} to existing Notion page ${pageId}`);
+          return pageId;
+        }
+        console.log(`Notion append failed: HTTP ${appendResp.status}`);
+        return null;
+      }
+    }
+
+    // Create new page
+    const createResp = await fetch('https://api.notion.com/v1/pages', {
+      method: 'POST',
+      headers: notionHeaders,
+      body: JSON.stringify({
+        parent: { database_id: NOTION_DB_ID },
+        properties: {
+          Name: { title: [{ type: 'text', text: { content: pageTitle } }] },
+          Date: { date: { start: today } },
+        },
+        children: [
+          { object: 'block', type: 'heading_2', heading_2: { rich_text: [rt('🎙 Podcasts', { bold: true })] } },
+          ...blocks,
+        ].slice(0, 100),
+      }),
+    });
+
+    if (createResp.ok) {
+      const page = await createResp.json();
+      console.log(`Created Notion podcast page: ${page.id}`);
+      return page.id;
+    }
+    console.log(`Notion create failed: HTTP ${createResp.status}`);
+    return null;
+  } catch (err) {
+    console.error('Notion write error:', err.message);
+    return null;
+  }
+}
+
 exports.handler = async (event) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -159,7 +341,6 @@ Rules:
     try {
       podcast = JSON.parse(cleaned);
     } catch (parseErr) {
-      // Fallback: return raw text as summary
       podcast = {
         id: podcast_name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         name: podcast_name,
@@ -178,6 +359,11 @@ Rules:
         recommendations: { books: [], podcasts: [], tools: [], people: [], articles_links: [], music: [] },
       };
     }
+
+    // Write to Notion (non-blocking — don't fail the response if Notion fails)
+    writePodcastToNotion(podcast).catch(err => {
+      console.error('Background Notion write failed:', err.message);
+    });
 
     return {
       statusCode: 200,
