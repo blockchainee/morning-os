@@ -1055,6 +1055,11 @@ function mergeAndCacheNewsletters() {
     if (n.has_new_edition && n.layer1) {
       return { ...n, _stale: false };
     }
+    // Has layer1 data but not marked as new edition — show as previous edition
+    if (n.layer1) {
+      cached[n.id] = cached[n.id] || { ...n, _cachedAt: new Date().toISOString() };
+      return { ...n, _stale: true, has_new_edition: true };
+    }
     // Try cached version
     if (cached[n.id] && cached[n.id].layer1) {
       return { ...cached[n.id], _stale: true, has_new_edition: true };
@@ -1150,7 +1155,8 @@ function renderToday(el) {
 
   // Section: Newsletters
   const activeNL = STATE.newsletters.filter(n => n.on);
-  el.appendChild(secLabel(`Newsletters · ${activeNL.length} sources`));
+  const nlLabel = secLabel('Newsletters');
+  el.appendChild(nlLabel);
 
   if (!b) {
     const ph = document.createElement('div');
@@ -1162,12 +1168,34 @@ function renderToday(el) {
     return;
   }
 
-  activeNL.forEach((nl, i) => {
+  // Build set of IDs that have actual briefing or cached data
+  const briefingIds = new Set((b.newsletters || []).map(n => n.id));
+  const cachedNL = JSON.parse(localStorage.getItem('pig_os_cached_nl') || '{}');
+  const hasData = (id) => briefingIds.has(id) || (cachedNL[id] && cachedNL[id].layer1);
+
+  // Only show sources that have data (briefing or cached) — never empty placeholders
+  let idx = 0;
+  activeNL.forEach((nl) => {
+    if (!hasData(nl.id)) return; // skip sources with no data at all
     const data = b.newsletters ? b.newsletters.find(n => n.id === nl.id) : null;
     const card = renderNewsletterCard(nl, data);
-    card.style.animationDelay = `${i * 40}ms`;
+    card.style.animationDelay = `${idx * 40}ms`;
     el.appendChild(card);
+    idx++;
   });
+
+  // Also show any briefing newsletters not in config (auto-discovered sources)
+  (b.newsletters || []).forEach(n => {
+    if (!n.layer1) return;
+    const inConfig = activeNL.some(nl => nl.id === n.id);
+    if (inConfig) return;
+    const card = renderNewsletterCard({ id: n.id, name: n.source_name || n.id }, n);
+    card.style.animationDelay = `${idx * 40}ms`;
+    el.appendChild(card);
+    idx++;
+  });
+
+  nlLabel.textContent = `Newsletters · ${idx} sources`;
 }
 
 function secLabel(text) {

@@ -296,8 +296,34 @@ async function discoverNewsletters() {
 }
 
 // ── Google Calendar API ───────────────────────────────────────
+
+// Fetch all user-visible calendar IDs via CalendarList API
+async function fetchCalendarIds() {
+  const token = await getGoogleAccessToken();
+  try {
+    const resp = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!resp.ok) {
+      log(`CalendarList failed (${resp.status}), falling back to primary`);
+      return ['primary'];
+    }
+    const data = await resp.json();
+    // Include all non-hidden, non-birthday calendars (birthdays handled separately)
+    const ids = (data.items || [])
+      .filter(c => !c.hidden && !c.deleted && c.id !== 'contacts@gmail.com')
+      .map(c => c.id);
+    log(`CalendarList: found ${ids.length} calendars: ${ids.join(', ')}`);
+    return ids.length ? ids : ['primary'];
+  } catch (err) {
+    log(`CalendarList error: ${err.message}, falling back to primary`);
+    return ['primary'];
+  }
+}
+
 async function fetchCalendarEvents() {
   const token = await getGoogleAccessToken();
+  const calendarIds = await fetchCalendarIds();
 
   const dubaiNow = new Date(new Date().toLocaleString('en-US', { timeZone: USER_TIMEZONE }));
   const startOfDay = new Date(dubaiNow);
@@ -305,16 +331,39 @@ async function fetchCalendarEvents() {
   const endOfWeek = new Date(dubaiNow);
   endOfWeek.setDate(endOfWeek.getDate() + 7);
 
-  const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?` +
-    `timeMin=${startOfDay.toISOString()}&timeMax=${endOfWeek.toISOString()}` +
-    `&singleEvents=true&orderBy=startTime&maxResults=20`;
+  const timeMin = startOfDay.toISOString();
+  const timeMax = endOfWeek.toISOString();
 
-  const resp = await fetch(url, {
-    headers: { 'Authorization': `Bearer ${token}` }
+  // Fetch events from all calendars in parallel
+  const results = await Promise.allSettled(calendarIds.map(async (calId) => {
+    const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?` +
+      `timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true&orderBy=startTime&maxResults=50`;
+    const resp = await fetch(url, { headers: { 'Authorization': `Bearer ${token}` } });
+    if (!resp.ok) {
+      log(`Calendar ${calId} failed: ${resp.status}`);
+      return [];
+    }
+    const data = await resp.json();
+    return data.items || [];
+  }));
+
+  // Merge all events, dedupe by event ID, sort by start time
+  const allEvents = results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
+  const seen = new Set();
+  const unique = allEvents.filter(e => {
+    if (seen.has(e.id)) return false;
+    seen.add(e.id);
+    return true;
   });
-  if (!resp.ok) throw new Error(`Calendar failed: ${resp.status}`);
-  const data = await resp.json();
-  return data.items || [];
+  unique.sort((a, b) => {
+    const ta = a.start?.dateTime || a.start?.date || '';
+    const tb = b.start?.dateTime || b.start?.date || '';
+    return ta.localeCompare(tb);
+  });
+  log(`Calendar: ${unique.length} events from ${calendarIds.length} calendars`);
+  return unique;
 }
 
 async function fetchBirthdays() {
