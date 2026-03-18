@@ -2,8 +2,8 @@
 // Runs every Sunday via GitHub Actions
 // Reads last 7 daily briefings → synthesizes → updates Notion + user-model.md
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
