@@ -37,6 +37,6 @@ jobs:
         run: |
           git config --local user.email "morning-os[bot]@users.noreply.github.com"
           git config --local user.name "Morning OS Bot"
-          git add knowledge/user-model.md weekly-report.json
+          git add --ignore-missing knowledge/user-model.md weekly-report.json
           git diff --staged --quiet || git commit -m "Weekly synthesis: $(date +%Y-%m-%d)"
           git push
