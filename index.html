@@ -42,9 +42,8 @@
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
 html, body {
-  min-height: 100%;
-  height: auto;
-  overflow-x: hidden;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans);
@@ -56,10 +55,11 @@ html, body {
 #app {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100%;
   max-width: 430px;
   margin: 0 auto;
   position: relative;
+  overflow: hidden;
 }
 
 /* ── STATUS BAR ─────────────────────────────────────────────── */
@@ -71,9 +71,6 @@ html, body {
   justify-content: space-between;
   align-items: center;
   flex-shrink: 0;
-  position: sticky;
-  top: 0;
-  z-index: 100;
 }
 .sb-left { display: flex; flex-direction: column; gap: 2px; }
 .sb-date { font-family: var(--font-serif); font-size: 19px; color: var(--text); letter-spacing: -.2px; }
@@ -137,7 +134,9 @@ html, body {
 /* ── TAB CONTENT ────────────────────────────────────────────── */
 #tab-content {
   flex: 1;
-  overflow: visible;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
   padding: 12px 12px 16px;
   display: flex;
   flex-direction: column;
@@ -153,9 +152,6 @@ html, body {
   flex-shrink: 0;
   padding-bottom: env(safe-area-inset-bottom, 0);
   box-shadow: 0 -1px 0 rgba(0,0,0,.04);
-  position: sticky;
-  bottom: 0;
-  z-index: 100;
 }
 .tab-btn {
   flex: 1;
