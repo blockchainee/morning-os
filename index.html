@@ -952,15 +952,16 @@ const STATE = {
   briefing: null,
   savedItems: [],
   newsletters: [
-    { id:'a16z',      name:'a16z',               sender:'@a16z.com',                   on:true },
-    { id:'bankless',  name:'Bankless',            sender:'@bankless.com',               on:true },
-    { id:'pomp',      name:'The Pomp Letter',     sender:'pomp@pomp.com',               on:true },
-    { id:'tldr',      name:'TLDR',                sender:'@tldr.tech',                  on:true },
-    { id:'semafor',   name:'Semafor',             sender:'@semafor.com',                on:true },
-    { id:'intrigue',  name:'Intl Intrigue',       sender:'@internationalintrigue.io',   on:true },
-    { id:'lenny',     name:"Lenny's Newsletter",  sender:'lennys-newsletter substack',  on:true },
-    { id:'chamath',   name:'Chamath',             sender:'chamath@socialcapital.com',   on:true },
-    { id:'timeout',   name:'Time Out Dubai',      sender:'@timeout.com',               on:true },
+    { id:'bankless',              name:'Bankless',            sender:'@bankless.com',               on:true },
+    { id:'the-pomp-letter',      name:'The Pomp Letter',     sender:'pomp@pomp.com',               on:true },
+    { id:'tldr',                  name:'TLDR',                sender:'@tldr.tech',                  on:true },
+    { id:'semafor-flagship',     name:'Semafor',             sender:'@semafor.com',                on:true },
+    { id:'international-intrigue', name:'Intl Intrigue',     sender:'@internationalintrigue.io',   on:true },
+    { id:'lark-davis',           name:'Lark Davis',          sender:'@larkdavis.com',              on:true },
+    { id:'a16z',                  name:'a16z',               sender:'@a16z.com',                   on:true },
+    { id:'lenny',                 name:"Lenny's Newsletter", sender:'lennys-newsletter substack',  on:true },
+    { id:'chamath',               name:'Chamath',            sender:'chamath@socialcapital.com',   on:true },
+    { id:'timeout',               name:'Time Out Dubai',     sender:'@timeout.com',               on:true },
   ],
   podcasts: [
     { id:'bankless-pod', name:'Bankless Podcast',       on:true },
@@ -1003,12 +1004,30 @@ function save() {
     localStorage.setItem('pig_os_podcasts',   JSON.stringify(STATE.podcasts));
   } catch(e) {}
 }
+// Migrate old newsletter IDs to match backend IDs
+const NL_ID_ALIASES = { pomp:'the-pomp-letter', semafor:'semafor-flagship', intrigue:'international-intrigue' };
+function migrateNlId(id) { return NL_ID_ALIASES[id] || id; }
+
 function load() {
   try {
     STATE.briefing    = JSON.parse(localStorage.getItem('pig_os_briefing') || 'null');
     STATE.savedItems  = JSON.parse(localStorage.getItem('pig_os_saved')    || '[]');
     const nl = localStorage.getItem('pig_os_newsletters');
-    if (nl) STATE.newsletters = JSON.parse(nl);
+    if (nl) {
+      const loaded = JSON.parse(nl).map(n => ({ ...n, id: migrateNlId(n.id) }));
+      // Add any new default newsletters not present in saved data
+      const loadedIds = new Set(loaded.map(n => n.id));
+      const defaultIds = ['bankless','the-pomp-letter','tldr','semafor-flagship','international-intrigue','lark-davis','a16z','lenny','chamath','timeout'];
+      const defaultNls = [
+        { id:'bankless', name:'Bankless', on:true }, { id:'the-pomp-letter', name:'The Pomp Letter', on:true },
+        { id:'tldr', name:'TLDR', on:true }, { id:'semafor-flagship', name:'Semafor', on:true },
+        { id:'international-intrigue', name:'Intl Intrigue', on:true }, { id:'lark-davis', name:'Lark Davis', on:true },
+        { id:'a16z', name:'a16z', on:true }, { id:'lenny', name:"Lenny's Newsletter", on:true },
+        { id:'chamath', name:'Chamath', on:true }, { id:'timeout', name:'Time Out Dubai', on:true },
+      ];
+      defaultNls.forEach(d => { if (!loadedIds.has(d.id)) loaded.push(d); });
+      STATE.newsletters = loaded;
+    }
     const pc = localStorage.getItem('pig_os_podcasts');
     if (pc) STATE.podcasts = JSON.parse(pc);
   } catch(e) {}
