@@ -1182,27 +1182,28 @@ async function main() {
     fetchGrowth(),
   ]);
 
-  // Newsletters sequentially to respect Claude API rate limits (30k tokens/min)
+  // Newsletters in batches of 2 to respect Claude API rate limits (30k tokens/min)
   const nlResults = [];
-  for (const nl of activeNewsletters) {
-    try {
-      const result = await fetchNewsletter(nl);
-      nlResults.push({ status: 'fulfilled', value: result });
-    } catch (err) {
-      log(`Newsletter ${nl.name} ERROR: ${err.message}`);
-      nlResults.push({ status: 'rejected', reason: err });
-    }
+  for (let i = 0; i < activeNewsletters.length; i += 2) {
+    const batch = activeNewsletters.slice(i, i + 2);
+    const batchResults = await Promise.allSettled(batch.map(nl => fetchNewsletter(nl)));
+    nlResults.push(...batchResults);
   }
 
-  // Podcasts sequential
+  // Podcasts in batches of 2
   const podcasts = [];
-  for (const podId of activePodcasts) {
-    const podInfo = PODCAST_DIRECTORY[podId];
-    if (!podInfo) continue;
-    try {
-      const result = await processPodcast(podId, podInfo);
-      if (result) podcasts.push(result);
-    } catch(err) { log(`Podcast ${podId} ERROR: ${err.message}`); }
+  for (let i = 0; i < activePodcasts.length; i += 2) {
+    const batch = activePodcasts.slice(i, i + 2);
+    const batchResults = await Promise.allSettled(
+      batch.map(podId => {
+        const podInfo = PODCAST_DIRECTORY[podId];
+        if (!podInfo) return Promise.resolve(null);
+        return processPodcast(podId, podInfo);
+      })
+    );
+    batchResults.forEach(r => {
+      if (r.status === 'fulfilled' && r.value) podcasts.push(r.value);
+    });
   }
 
   const calData = calResult.status==='fulfilled' ? calResult.value : {};
