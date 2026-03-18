@@ -1319,10 +1319,32 @@ function renderNewsletterCard(nl, data) {
 
   wrap.appendChild(header);
 
-  // Layer 2 panel
+  // Triage buttons — always active
+  header.querySelector('.triage-row').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tq');
+    if (!btn) return;
+    const val = btn.dataset.v;
+    if (data.triage === val) { data.triage = null; }
+    else { data.triage = val; }
+    save();
+    header.querySelectorAll('.tq').forEach(b => {
+      b.className = 'tq';
+      if (b.dataset.v === data.triage) {
+        b.classList.add({ act:'t-act', save:'t-save', share:'t-share', done:'t-done' }[data.triage] || '');
+      }
+    });
+  });
+
+  // Layer 2 panel — only if layer2 data exists
+  const l2 = data.layer2;
+  if (!l2) {
+    // Hide deep-btn if no layer2 data
+    const deepBtn = header.querySelector('.deep-btn');
+    if (deepBtn) deepBtn.style.display = 'none';
+    return wrap;
+  }
   const l2panel = document.createElement('div');
   l2panel.className = 'layer2-panel';
-  const l2 = data.layer2;
   l2panel.innerHTML = `<div class="layer2-inner">
     <div class="l2-block">
       <div class="l2-lbl">Framing</div>
@@ -1366,27 +1388,11 @@ function renderNewsletterCard(nl, data) {
   </div>`;
   wrap.appendChild(l2panel);
 
-  // Interactions
+  // Deep dive button interaction
   header.querySelector('.deep-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     l2panel.classList.toggle('open');
     e.currentTarget.textContent = l2panel.classList.contains('open') ? 'collapse ↑' : 'read deep →';
-  });
-
-  header.querySelector('.triage-row').addEventListener('click', (e) => {
-    const btn = e.target.closest('.tq');
-    if (!btn) return;
-    const val = btn.dataset.v;
-    if (data.triage === val) { data.triage = null; }
-    else { data.triage = val; }
-    save();
-    // re-render just the triage row
-    header.querySelectorAll('.tq').forEach(b => {
-      b.className = 'tq';
-      if (b.dataset.v === data.triage) {
-        b.classList.add({ act:'t-act', save:'t-save', share:'t-share', done:'t-done' }[data.triage] || '');
-      }
-    });
   });
 
   l2panel.querySelector('.act-thesis').addEventListener('click', (e) => {
