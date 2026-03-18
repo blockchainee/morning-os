@@ -1593,7 +1593,11 @@ function fillRemainingSkeletons(activePods) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ podcast_name: podName }),
     })
-      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(r => {
+        if (r.status === 429) throw new Error('RATE_LIMIT');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
         const c = getPodcastCache();
         c[podName] = { data, fetchedAt: Date.now() };
@@ -1605,9 +1609,12 @@ function fillRemainingSkeletons(activePods) {
       })
       .catch(err => {
         console.error(`podcast-fetch failed for ${podName}:`, err);
+        const isRateLimit = err.message === 'RATE_LIMIT';
         sk.innerHTML = `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px">
           <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px">${esc(podName)}</div>
-          Could not load episode. <button onclick="renderTab()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Retry</button>
+          ${isRateLimit
+            ? '<span style="color:var(--amber)">API credits exhausted.</span> Resets automatically — try again later.'
+            : `Could not load episode. <button onclick="renderTab()" style="color:var(--accent);background:none;border:none;cursor:pointer;text-decoration:underline">Retry</button>`}
         </div>`;
       });
   });
@@ -1989,7 +1996,20 @@ async function searchITunes(query) {
       const data = await resp.json();
       itunesResults = data.results || [];
       renderPodcastSearchResults(itunesResults);
-    } catch(e) { console.warn('iTunes search error:', e); }
+    } catch(e) {
+      console.warn('iTunes search error:', e);
+      const list = document.getElementById('podcast-directory-list');
+      if (list) {
+        const errDiv = list.querySelector('.itunes-error');
+        if (!errDiv) {
+          const el = document.createElement('div');
+          el.className = 'itunes-error';
+          el.style.cssText = 'font-size:11px;color:var(--text3);padding:8px 0;text-align:center';
+          el.textContent = 'Search unavailable — try again';
+          list.appendChild(el);
+        }
+      }
+    }
   }, 350);
 }
 
@@ -2021,7 +2041,7 @@ function renderPodcastSearchResults(results) {
   if (results.length) {
     html += `<div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.7px;margin-bottom:6px">Search results</div>`;
     results.forEach(pod => {
-      const alreadyAdded = STATE.podcasts.some(p => p.itunesId === pod.collectionId && p.on);
+      const alreadyAdded = STATE.podcasts.some(p => (p.itunesId === pod.collectionId || p.id === 'itunes_' + pod.collectionId) && p.on);
       const artwork = (pod.artworkUrl100 || '').replace('100x100', '60x60');
       html += `<div class="podcast-item" style="align-items:center;opacity:${alreadyAdded ? '0.5' : '1'}">
         <button class="podcast-toggle ${alreadyAdded ? 'on disabled' : ''}" data-add="${pod.collectionId}" data-name="${esc(pod.collectionName)}" data-artist="${esc(pod.artistName || '')}" data-artwork="${esc(artwork)}"></button>
