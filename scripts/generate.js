@@ -1096,6 +1096,37 @@ async function main() {
   const nlProcessed = nlResults.map((r,i) =>
     r.status==='fulfilled' ? r.value : { id: activeNewsletters[i].id, has_new_edition:false }
   );
+  // Generate opening statement for v2 frontend
+  let opening = null;
+  try {
+    const highSignalNLs = nlProcessed
+      .filter(n => n.has_new_edition)
+      .map(n => ({ name: n.id, summary: n.layer1?.summary, signals: n.layer1?.signals, domain: n.domain }));
+    if (highSignalNLs.length > 0) {
+      log('[Opening] Generating opening statement...');
+      opening = await claudeCall(`Based on today's processed intelligence, write the opening statement for ${USER_NAME}'s morning briefing.
+
+Processed newsletters today:
+${JSON.stringify(highSignalNLs, null, 2)}
+
+Return JSON:
+{
+  "headline": "Single most important sentence from today. Max 18 words. Present tense. Specific. Not generic.",
+  "context": "Exactly 2 sentences. Why this matters specifically for ${USER_NAME}'s domains.",
+  "signal_pills": [{ "label": "2-3 word topic", "domain": "D1|D2|D3|D4" }]
+}
+
+Rules:
+- headline: must be about a SPECIFIC story/signal, not a category
+- signal_pills: maximum 3, only genuinely high-signal topics from today
+- If today is low-signal, say so honestly`, 500);
+      log('[Opening] Done.');
+    }
+  } catch (err) {
+    log(`[Opening] Failed (non-fatal): ${err.message}`);
+    opening = { headline: "Today's intelligence briefing is ready.", context: "Review the signals below.", signal_pills: [] };
+  }
+
   const briefing = {
     _meta: {
       generated_at: new Date().toISOString(),
@@ -1104,6 +1135,7 @@ async function main() {
       version: '2.0',
     },
     generated_at: new Date().toISOString(),
+    _opening: opening,
     calendar:  calData.today ? { today: calData.today, focus_window: calData.focus_window } : null,
     birthdays: calData.birthdays || [],
     growth:    growthResult.status==='fulfilled' ? growthResult.value : null,
