@@ -192,6 +192,26 @@ a { color: var(--signal); text-decoration: none; }
   text-transform: uppercase; letter-spacing: 0.03em;
 }
 
+/* Stale card (previously generated, not fresh today) */
+.card.stale {
+  opacity: 0.65;
+  border-style: dashed;
+}
+.card.stale:hover { opacity: 0.85; }
+.stale-badge {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: 2px 8px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 /* Card dismiss animation */
 .card-dismissing {
   opacity: 0;
@@ -584,52 +604,69 @@ function mergeAndCacheItems() {
     localStorage.setItem('mos-v2-cache-date', today);
   }
 
-  // Build map of current newsletters from the fresh briefing
-  const freshNlMap = {};
-  (b.newsletters || []).forEach(n => { freshNlMap[n.id] = n; });
-
-  // Start with fresh newsletters that have new editions
+  // Goal: always show ONE card per source.
+  // Fresh (has_new_edition=true) replaces cached.
+  // If no fresh edition, fall back to cached version and mark it stale.
   const mergedNl = [];
   const seenIds = new Set();
 
-  // Add all fresh newsletters with new editions first
-  (b.newsletters || []).filter(n => n.has_new_edition).forEach(n => {
-    mergedNl.push(n);
+  // First pass: add fresh newsletters
+  (b.newsletters || []).filter(n => n.has_new_edition && n.layer1).forEach(n => {
+    mergedNl.push({ ...n, _stale: false });
     seenIds.add(n.id);
   });
 
-  // Add cached newsletters that haven't been read yet and aren't already included
+  // Second pass: fill in missing sources from cache (marked as stale)
   STATE.cachedNewsletters.forEach(cached => {
     if (!seenIds.has(cached.id) && !STATE.readItems.has('nl-' + cached.id)) {
-      mergedNl.push(cached);
+      mergedNl.push({ ...cached, _stale: true, has_new_edition: true });
       seenIds.add(cached.id);
     }
   });
 
-  // Same for podcasts
-  const freshPodMap = {};
-  (b.podcasts || []).forEach(p => { freshPodMap[p.id] = p; });
+  // Also include sources from briefing that have no new edition and no cache
+  // (show the source name at least, even without content)
+  (b.newsletters || []).forEach(n => {
+    if (!seenIds.has(n.id) && !STATE.readItems.has('nl-' + n.id)) {
+      mergedNl.push({ ...n, _stale: true, has_new_edition: true });
+      seenIds.add(n.id);
+    }
+  });
+
+  // Podcasts: same logic
   const mergedPod = [];
   const seenPodIds = new Set();
   (b.podcasts || []).forEach(p => {
-    mergedPod.push(p);
+    mergedPod.push({ ...p, _stale: false });
     seenPodIds.add(p.id);
   });
   STATE.cachedPodcasts.forEach(cached => {
     if (!seenPodIds.has(cached.id) && !STATE.readItems.has('pod-' + cached.id)) {
-      mergedPod.push(cached);
+      mergedPod.push({ ...cached, _stale: true });
       seenPodIds.add(cached.id);
     }
   });
 
   // Update briefing with merged data
-  b.newsletters = mergedNl.map(n => ({ ...n, has_new_edition: true }));
+  b.newsletters = mergedNl;
   b.podcasts = mergedPod;
 
-  // Cache for next refresh - store newsletters that have content
-  STATE.cachedNewsletters = mergedNl.filter(n => n.layer1);
-  STATE.cachedPodcasts = mergedPod.filter(p => p.layer1);
+  // Cache fresh newsletters for future use
+  const toCache = mergedNl.filter(n => n.layer1 && !n._stale);
+  // Keep old cache entries that aren't replaced by fresh ones
+  const freshIds = new Set(toCache.map(n => n.id));
+  STATE.cachedNewsletters.forEach(c => {
+    if (!freshIds.has(c.id)) toCache.push(c);
+  });
+  STATE.cachedNewsletters = toCache;
   localStorage.setItem('mos-v2-cached-nl', JSON.stringify(STATE.cachedNewsletters));
+
+  const toCachePod = mergedPod.filter(p => p.layer1 && !p._stale);
+  const freshPodIds = new Set(toCachePod.map(p => p.id));
+  STATE.cachedPodcasts.forEach(c => {
+    if (!freshPodIds.has(c.id)) toCachePod.push(c);
+  });
+  STATE.cachedPodcasts = toCachePod;
   localStorage.setItem('mos-v2-cached-pod', JSON.stringify(STATE.cachedPodcasts));
 }
 
@@ -751,14 +788,18 @@ function getWeekNumber() {
 // ── Briefing Feed ─────────────────────────────────────────
 function renderBriefing() {
   const b = STATE.briefing;
-  const nls = (b.newsletters || []).filter(n => n.has_new_edition && !STATE.readItems.has('nl-' + n.id));
+  // Show all sources; fresh ones sort first, stale ones last
+  const nls = (b.newsletters || []).filter(n => !STATE.readItems.has('nl-' + n.id));
   const pods = (b.podcasts || []).filter(p => !STATE.readItems.has('pod-' + p.id));
 
-  // Merge and sort by signal strength
+  // Merge and sort: fresh items by signal, then stale items at the bottom
   const items = [];
-  nls.forEach(n => items.push({ type: 'newsletter', data: n, signal: signalScore(n) }));
-  pods.forEach(p => items.push({ type: 'podcast', data: p, signal: signalScore(p) }));
-  items.sort((a, b) => b.signal - a.signal);
+  nls.forEach(n => items.push({ type: 'newsletter', data: n, signal: signalScore(n), stale: n._stale || false }));
+  pods.forEach(p => items.push({ type: 'podcast', data: p, signal: signalScore(p), stale: p._stale || false }));
+  items.sort((a, b) => {
+    if (a.stale !== b.stale) return a.stale ? 1 : -1; // fresh first
+    return b.signal - a.signal;
+  });
 
   // Find highest signal item
   const highestIdx = items.length > 0 ? 0 : -1;
@@ -827,8 +868,9 @@ function renderNewsletterCard(nl, isHigh, idx) {
     </div></div>`;
   }
 
-  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh ? 'high-signal' : ''}" ${triage === 'skip' ? 'style="opacity:0.5"' : ''}>
-    <div class="card-meta t-meta">FROM:${escHtml(nl.id).toUpperCase()}  \u00b7  ${domain}  \u00b7  ${nl.date ? new Date(nl.date).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''}</div>
+  const isStale = nl._stale === true;
+  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh && !isStale ? 'high-signal' : ''} ${isStale ? 'stale' : ''}" ${triage === 'skip' && !isStale ? 'style="opacity:0.5"' : ''}>
+    <div class="card-meta t-meta">FROM:${escHtml(nl.id).toUpperCase()}  \u00b7  ${domain}  \u00b7  ${nl.date ? new Date(nl.date).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : ''}${isStale ? '<span class="stale-badge">previous edition</span>' : ''}</div>
     <div class="t-card-title">${escHtml(nl.id.charAt(0).toUpperCase() + nl.id.slice(1))}</div>
     <div class="card-summary t-body">${escHtml(l1.summary)}</div>
     <div style="display:flex;gap:4px;margin-bottom:8px">${signals.slice(0,3).map(() => `<span class="domain-dot ${domainClass(domain)}"></span>`).join('')}</div>
@@ -904,8 +946,9 @@ function renderPodcastCard(pod, isHigh, idx) {
     </div></div>`;
   }
 
-  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh ? 'high-signal' : ''}">
-    <div class="card-meta t-meta">PODCAST  \u00b7  ${escHtml(domain)}  \u00b7  ${escHtml(duration)}</div>
+  const isStale = pod._stale === true;
+  return `<div class="card reveal reveal-${Math.min(idx, 4)} ${isHigh && !isStale ? 'high-signal' : ''} ${isStale ? 'stale' : ''}">
+    <div class="card-meta t-meta">PODCAST  \u00b7  ${escHtml(domain)}  \u00b7  ${escHtml(duration)}${isStale ? '<span class="stale-badge">previous episode</span>' : ''}</div>
     <div class="t-card-title">${escHtml(pod.name || pod.id)}</div>
     ${pod.episode_title ? `<div class="t-body" style="font-size:13px;margin-top:2px">${escHtml(pod.episode_title)}</div>` : ''}
     ${guest ? `<div class="t-body" style="font-size:13px;color:var(--text-tertiary);margin-top:2px">with ${escHtml(typeof guest === 'string' ? guest : guest.name || '')}</div>` : ''}

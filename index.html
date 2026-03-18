@@ -338,6 +338,24 @@ html, body {
   color: var(--text3);
   font-style: italic;
 }
+/* Stale card (previously generated, not fresh today) */
+.card.stale {
+  opacity: 0.65;
+  border-style: dashed;
+}
+.card.stale:hover, .card.stale:active { opacity: 0.85; }
+.stale-badge {
+  display: inline-block;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text3);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  padding: 2px 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
 
 /* ── LAYER 2 PANEL ──────────────────────────────────────────── */
 .layer2-panel {
@@ -996,6 +1014,38 @@ function load() {
   } catch(e) {}
 }
 
+// ── Newsletter caching: always one card per source ──────────
+function mergeAndCacheNewsletters() {
+  const b = STATE.briefing;
+  if (!b) return;
+  const cached = JSON.parse(localStorage.getItem('pig_os_cached_nl') || '{}'); // id -> data
+  const freshNls = b.newsletters || [];
+
+  // Build a map of fresh newsletters that have actual content
+  const freshMap = {};
+  freshNls.forEach(n => {
+    if (n.has_new_edition && n.layer1) {
+      freshMap[n.id] = n;
+      // Cache this fresh edition for future use
+      cached[n.id] = { ...n, _cachedAt: new Date().toISOString() };
+    }
+  });
+
+  // For each newsletter in briefing, if no fresh edition, substitute cached
+  b.newsletters = freshNls.map(n => {
+    if (n.has_new_edition && n.layer1) {
+      return { ...n, _stale: false };
+    }
+    // Try cached version
+    if (cached[n.id] && cached[n.id].layer1) {
+      return { ...cached[n.id], _stale: true, has_new_edition: true };
+    }
+    return n; // no cache available either, will show "no edition"
+  });
+
+  localStorage.setItem('pig_os_cached_nl', JSON.stringify(cached));
+}
+
 // ═══════════════════════════════════════════════════════════════
 // TIME & DATE
 // ═══════════════════════════════════════════════════════════════
@@ -1173,12 +1223,13 @@ function renderCalCard(calData, birthdays) {
 // ── Newsletter Card ────────────────────────────────────────────
 function renderNewsletterCard(nl, data) {
   const wrap = document.createElement('div');
-  wrap.className = 'card card-enter';
+  const isStale = data && data._stale === true;
+  wrap.className = 'card card-enter' + (isStale ? ' stale' : '');
 
   const header = document.createElement('div');
   header.className = 'ncard-header';
 
-  if (!data || !data.has_new_edition) {
+  if (!data || (!data.has_new_edition && !data._stale)) {
     header.innerHTML = `
       <div class="ncard-top">
         <span class="ncard-source">${esc(nl.name)}</span>
@@ -1200,6 +1251,7 @@ function renderNewsletterCard(nl, data) {
     <div class="ncard-top">
       <span class="ncard-source">${esc(nl.name)}</span>
       <span class="domain-badge ${domainClass}">${esc(domainLabel)}</span>
+      ${isStale ? '<span class="stale-badge">previous edition</span>' : ''}
     </div>
     <div class="ncard-summary">${esc(l1.summary)}</div>
     <div class="signal-row">${(l1.signals||[]).map(s=>`<span class="sig-chip">${esc(typeof s === 'object' ? s.text : s)}</span>`).join('')}</div>
@@ -1920,6 +1972,7 @@ async function loadBriefing() {
     const staticData = await fetchStaticBriefing();
     if (staticData && staticData._source === 'static') {
       STATE.briefing = staticData;
+      mergeAndCacheNewsletters();
       save();
       renderTab();
       btn.textContent = 'Refresh';
@@ -1982,6 +2035,7 @@ function dayOfWeek() {
 // INIT
 // ═══════════════════════════════════════════════════════════════
 load();
+mergeAndCacheNewsletters();
 
 // Load cached meta pills
 if (STATE.briefing) {
