@@ -1,11 +1,11 @@
 {
   "_meta": {
-    "generated_at": "2026-03-18T14:45:21.748Z",
+    "generated_at": "2026-03-18T15:07:23.870Z",
     "newsletter_count": 0,
     "discovery_mode": "auto",
     "version": "2.0"
   },
-  "generated_at": "2026-03-18T14:45:21.748Z",
+  "generated_at": "2026-03-18T15:07:23.870Z",
   "_opening": null,
   "calendar": {
     "today": [
@@ -44,6 +44,11 @@
   "growth": null,
   "newsletters": [
     {
+      "id": "a16z",
+      "has_new_edition": false,
+      "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
+    },
+    {
       "id": "international-intrigue",
       "has_new_edition": false,
       "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
@@ -54,22 +59,12 @@
       "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
     },
     {
-      "id": "google",
-      "has_new_edition": false,
-      "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
-    },
-    {
       "id": "tldr",
       "has_new_edition": false,
       "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
     },
     {
       "id": "bankless",
-      "has_new_edition": false,
-      "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
-    },
-    {
-      "id": "a16z",
       "has_new_edition": false,
       "error": "Claude API 429: {\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"This request would exceed your organization's rate limit of 30,000 input tokens per minute (org: 50cc1345-650c-4512-852c-8afb1f9daaa7, mod"
     }
