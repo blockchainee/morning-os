@@ -66,8 +66,12 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
   min-height: 100dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+#app {
+  overflow-x: hidden;
 }
 a { color: var(--signal); text-decoration: none; }
 
@@ -135,6 +139,9 @@ a { color: var(--signal); text-decoration: none; }
   padding: var(--space-md);
   margin-bottom: var(--space-sm);
   transition: border-color var(--duration-normal) var(--ease-out);
+  overflow: visible;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 .card:hover { border-color: var(--border-active); }
 .card.high-signal {
@@ -143,7 +150,7 @@ a { color: var(--signal); text-decoration: none; }
 }
 .card.high-signal .t-card-title { color: var(--signal); }
 .card-meta { margin-bottom: var(--space-xs); }
-.card-summary { margin: var(--space-xs) 0 var(--space-sm); }
+.card-summary { margin: var(--space-xs) 0 var(--space-sm); word-wrap: break-word; overflow-wrap: break-word; }
 .card-bottom { display: flex; align-items: center; justify-content: space-between; margin-top: var(--space-sm); }
 .card-divider { border: none; border-top: 1px solid var(--border); margin: var(--space-sm) 0; }
 
@@ -183,6 +190,13 @@ a { color: var(--signal); text-decoration: none; }
   border: 1px solid var(--border);
   border-radius: var(--radius-full);
   text-transform: uppercase; letter-spacing: 0.03em;
+}
+
+/* Card dismiss animation */
+.card-dismissing {
+  opacity: 0;
+  transform: translateX(-20px);
+  transition: opacity 0.3s var(--ease-out), transform 0.3s var(--ease-out);
 }
 
 /* ── 8. Buttons ────────────────────────────────────────────── */
@@ -494,6 +508,10 @@ const STATE = {
   chatMessages: [],
   chatSystemPrompt: null,
   savedItems: JSON.parse(localStorage.getItem('mos-v2-saved') || '[]'),
+  readItems: new Set(JSON.parse(localStorage.getItem('mos-v2-read') || '[]')),
+  cachedNewsletters: JSON.parse(localStorage.getItem('mos-v2-cached-nl') || '[]'),
+  cachedPodcasts: JSON.parse(localStorage.getItem('mos-v2-cached-pod') || '[]'),
+  cacheDate: localStorage.getItem('mos-v2-cache-date') || '',
   isLoading: true,
   sundayMode: false,
   currentChallenge: 0,
@@ -527,6 +545,11 @@ async function loadData() {
     console.error('Data load error:', e);
   }
 
+  // Merge cached unread items so newsletters survive refreshes
+  if (STATE.briefing) {
+    mergeAndCacheItems();
+  }
+
   // Sunday detection
   const today = new Date();
   STATE.sundayMode = today.getDay() === 0 && STATE.weeklyReport !== null;
@@ -540,6 +563,79 @@ async function loadData() {
 function hideLoading() {
   const el = document.getElementById('loading-screen');
   if (el) { el.classList.add('hidden'); setTimeout(() => el.remove(), 600); }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 2b. ITEM PERSISTENCE (keep unread newsletters across refreshes)
+// ═══════════════════════════════════════════════════════════════
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function mergeAndCacheItems() {
+  const today = todayStr();
+  const b = STATE.briefing;
+
+  // New day? Clear read state so everything feels fresh
+  if (STATE.cacheDate !== today) {
+    STATE.readItems = new Set();
+    localStorage.setItem('mos-v2-read', '[]');
+    STATE.cacheDate = today;
+    localStorage.setItem('mos-v2-cache-date', today);
+  }
+
+  // Build map of current newsletters from the fresh briefing
+  const freshNlMap = {};
+  (b.newsletters || []).forEach(n => { freshNlMap[n.id] = n; });
+
+  // Start with fresh newsletters that have new editions
+  const mergedNl = [];
+  const seenIds = new Set();
+
+  // Add all fresh newsletters with new editions first
+  (b.newsletters || []).filter(n => n.has_new_edition).forEach(n => {
+    mergedNl.push(n);
+    seenIds.add(n.id);
+  });
+
+  // Add cached newsletters that haven't been read yet and aren't already included
+  STATE.cachedNewsletters.forEach(cached => {
+    if (!seenIds.has(cached.id) && !STATE.readItems.has('nl-' + cached.id)) {
+      mergedNl.push(cached);
+      seenIds.add(cached.id);
+    }
+  });
+
+  // Same for podcasts
+  const freshPodMap = {};
+  (b.podcasts || []).forEach(p => { freshPodMap[p.id] = p; });
+  const mergedPod = [];
+  const seenPodIds = new Set();
+  (b.podcasts || []).forEach(p => {
+    mergedPod.push(p);
+    seenPodIds.add(p.id);
+  });
+  STATE.cachedPodcasts.forEach(cached => {
+    if (!seenPodIds.has(cached.id) && !STATE.readItems.has('pod-' + cached.id)) {
+      mergedPod.push(cached);
+      seenPodIds.add(cached.id);
+    }
+  });
+
+  // Update briefing with merged data
+  b.newsletters = mergedNl.map(n => ({ ...n, has_new_edition: true }));
+  b.podcasts = mergedPod;
+
+  // Cache for next refresh - store newsletters that have content
+  STATE.cachedNewsletters = mergedNl.filter(n => n.layer1);
+  STATE.cachedPodcasts = mergedPod.filter(p => p.layer1);
+  localStorage.setItem('mos-v2-cached-nl', JSON.stringify(STATE.cachedNewsletters));
+  localStorage.setItem('mos-v2-cached-pod', JSON.stringify(STATE.cachedPodcasts));
+}
+
+function markAsRead(itemKey) {
+  STATE.readItems.add(itemKey);
+  localStorage.setItem('mos-v2-read', JSON.stringify([...STATE.readItems]));
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -655,8 +751,8 @@ function getWeekNumber() {
 // ── Briefing Feed ─────────────────────────────────────────
 function renderBriefing() {
   const b = STATE.briefing;
-  const nls = (b.newsletters || []).filter(n => n.has_new_edition);
-  const pods = (b.podcasts || []);
+  const nls = (b.newsletters || []).filter(n => n.has_new_edition && !STATE.readItems.has('nl-' + n.id));
+  const pods = (b.podcasts || []).filter(p => !STATE.readItems.has('pod-' + p.id));
 
   // Merge and sort by signal strength
   const items = [];
@@ -672,6 +768,17 @@ function renderBriefing() {
   document.querySelector('.feed-header').textContent = `TODAY'S BRIEFING  \u00b7  ${count} SOURCE${count !== 1 ? 'S' : ''}  \u00b7  ${dateShort.toUpperCase()}`;
 
   const feed = document.getElementById('briefing-feed');
+  if (items.length === 0) {
+    const totalNl = (b.newsletters || []).length;
+    const totalPod = (b.podcasts || []).length;
+    feed.innerHTML = `<div style="text-align:center;padding:var(--space-2xl) 0">
+      <div style="font-size:32px;margin-bottom:var(--space-sm)">&#10003;</div>
+      <div class="t-display-sm" style="margin-bottom:var(--space-xs)">All caught up</div>
+      <div class="t-body">You've reviewed ${totalNl + totalPod} source${totalNl + totalPod !== 1 ? 's' : ''} today.</div>
+      <button class="btn" style="margin-top:var(--space-md)" onclick="resetReadState()">Show all again</button>
+    </div>`;
+    return;
+  }
   feed.innerHTML = items.map((item, idx) => {
     const isHigh = idx === highestIdx && items.length > 1;
     if (item.type === 'newsletter') return renderNewsletterCard(item.data, isHigh, idx);
@@ -715,6 +822,7 @@ function renderNewsletterCard(nl, isHigh, idx) {
         <button class="btn btn-signal" onclick="openChatWith('${cardId}','${escHtml(nl.id)}')">Ask Claude &rarr;</button>
         <button class="btn" onclick="saveItem('newsletter','${escHtml(nl.id)}','${escHtml(l1.summary || '')}')">Save &#10022;</button>
         <button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Collapse &uarr;</button>
+        <button class="btn btn-ghost" onclick="dismissItem('${cardId}')">Done &#10003;</button>
       </div>
     </div></div>`;
   }
@@ -726,7 +834,10 @@ function renderNewsletterCard(nl, isHigh, idx) {
     <div style="display:flex;gap:4px;margin-bottom:8px">${signals.slice(0,3).map(() => `<span class="domain-dot ${domainClass(domain)}"></span>`).join('')}</div>
     <div class="card-bottom">
       <span class="triage ${triageClass}">${escHtml(triage)}</span>
-      ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Expand &darr;</button>` : ''}
+      <div style="display:flex;gap:8px">
+        ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Expand &darr;</button>` : ''}
+        <button class="btn btn-ghost" onclick="dismissItem('${cardId}')" title="Mark as read">&#10003; Done</button>
+      </div>
     </div>
     ${l2Html}
   </div>`;
@@ -788,6 +899,7 @@ function renderPodcastCard(pod, isHigh, idx) {
         <button class="btn btn-signal" onclick="openChatWith('${cardId}','${escHtml(pod.name || pod.id)}')">Ask Claude &rarr;</button>
         <button class="btn" onclick="saveItem('podcast','${escHtml(pod.id)}','${escHtml(l1.summary || '')}')">Save &#10022;</button>
         <button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Collapse &uarr;</button>
+        <button class="btn btn-ghost" onclick="dismissItem('${cardId}')">Done &#10003;</button>
       </div>
     </div></div>`;
   }
@@ -801,7 +913,10 @@ function renderPodcastCard(pod, isHigh, idx) {
     ${keyStatements.length ? `<ul class="key-statements">${keyStatements.slice(0,3).map(s => `<li>\u201c${escHtml(s)}\u201d</li>`).join('')}</ul>` : ''}
     <div class="card-bottom">
       <span class="triage ${triageClass}">${escHtml(triage)}</span>
-      ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Deep Dive &darr;</button>` : ''}
+      <div style="display:flex;gap:8px">
+        ${l2Html ? `<button class="btn btn-ghost" onclick="toggleExpand('${cardId}')">Deep Dive &darr;</button>` : ''}
+        <button class="btn btn-ghost" onclick="dismissItem('${cardId}')" title="Mark as read">&#10003; Done</button>
+      </div>
     </div>
     ${l2Html}
   </div>`;
@@ -837,6 +952,29 @@ function toggleExpand(cardId) {
   } else {
     STATE.expandedCards.delete(cardId);
   }
+}
+
+function resetReadState() {
+  STATE.readItems = new Set();
+  localStorage.setItem('mos-v2-read', '[]');
+  renderBriefing();
+}
+
+function dismissItem(cardId) {
+  markAsRead(cardId);
+  // Animate out, then re-render
+  const cards = document.querySelectorAll('.card');
+  for (const card of cards) {
+    if (card.innerHTML.includes('expand-' + cardId) || card.querySelector('#expand-' + cardId)) {
+      card.style.transition = 'opacity 0.3s, transform 0.3s';
+      card.style.opacity = '0';
+      card.style.transform = 'translateX(-20px)';
+      setTimeout(() => renderBriefing(), 350);
+      return;
+    }
+  }
+  // Fallback: just re-render
+  renderBriefing();
 }
 
 // ── Grow ──────────────────────────────────────────────────
