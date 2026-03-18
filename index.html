@@ -1245,7 +1245,7 @@ function renderNewsletterCard(nl, data) {
 
   const l1 = data.layer1;
   const domainClass = { D1:'d1', D2:'d2', D3:'d3', D4:'d4' }[data.domain] || 'd1';
-  const domainLabel = { D1:'D1 pro', D2:'D2 wealth', D3:'D3 world', D4:'D4 growth' }[data.domain] || data.domain;
+  const domainLabel = { D1:'Edge', D2:'Capital', D3:'Geopolitics', D4:'Vitality' }[data.domain] || data.domain;
 
   header.innerHTML = `
     <div class="ncard-top">
@@ -1433,7 +1433,7 @@ function renderPodcastCard(pod) {
         <div class="pcard-name">${esc(pod.name)}</div>
         <div class="pcard-ep">${esc(pod.episode_title || pod.episode || '')} · ${esc(pod.published_date || pod.date || '')}</div>
       </div>
-      ${domainTags.length ? `<div style="display:flex;gap:3px;flex-shrink:0">${domainTags.map(d => `<span class="domain-badge ${({D1:'d1',D2:'d2',D3:'d3',D4:'d4'})[d]||'d1'}" style="font-size:9px">${esc(d)}</span>`).join('')}</div>` : ''}
+      ${domainTags.length ? `<div style="display:flex;gap:3px;flex-shrink:0">${domainTags.map(d => `<span class="domain-badge ${({D1:'d1',D2:'d2',D3:'d3',D4:'d4'})[d]||'d1'}" style="font-size:9px">${esc(({D1:'Edge',D2:'Capital',D3:'Geopolitics',D4:'Vitality'})[d]||d)}</span>`).join('')}</div>` : ''}
     </div>
     ${guestLine}
     <div class="pcard-sum">${esc(summary)}</div>
