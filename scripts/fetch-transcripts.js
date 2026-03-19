@@ -1,13 +1,16 @@
 /**
  * Morning OS — Cloud Podcast Transcript Fetcher
- * Runs inside GitHub Actions. Uses yt-dlp to fetch YouTube transcripts.
- * Saves transcripts to ./transcripts/ for use by generate.js
+ * Runs inside GitHub Actions.
+ * Step 1: yt-dlp --dump-json for episode metadata (title, description, video ID) — saves meta.json
+ * Step 2: youtube-transcript npm package for actual captions (native YouTube API) — saves transcript.txt
+ * If Step 2 fails: meta.json still exists → generate.js uses description as fallback
  */
 
 import { execSync, spawnSync } from 'child_process';
 import { writeFileSync, existsSync, mkdirSync, readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -48,149 +51,145 @@ const PODCAST_DIRECTORY = {
   'diary-of-ceo':      { name: 'The Diary of a CEO',        channel: '@TheDiaryOfACEO' },
 };
 
-function cleanVtt(vttContent) {
-  // Remove WEBVTT header and metadata
-  let text = vttContent
-    .replace(/^WEBVTT.*$/m, '')
-    .replace(/^NOTE.*$/gm, '')
-    .replace(/^\d{2}:\d{2}:\d{2}[.,]\d{3}\s*-->\s*\d{2}:\d{2}:\d{2}[.,]\d{3}.*$/gm, '')
-    .replace(/^\d+\s*$/gm, '')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ');
+// Clean raw transcript segments into readable paragraphs
+function cleanTranscriptSegments(segments) {
+  const raw = segments
+    .map(s => s.text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#39;/g, "'").replace(/&quot;/g, '"').trim())
+    .filter(t => t)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
-  // Remove duplicate adjacent lines (VTT rolling captions repeat)
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-  const deduped = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (i === 0 || lines[i] !== lines[i - 1]) {
-      deduped.push(lines[i]);
-    }
-  }
-
-  // Join and clean whitespace
-  let clean = deduped.join(' ').replace(/\s+/g, ' ').trim();
-
-  // Break into paragraphs at sentence boundaries ~every 600 chars
   const paragraphs = [];
-  while (clean.length > 600) {
-    let split = clean.lastIndexOf('. ', 600);
-    if (split === -1) split = clean.lastIndexOf(' ', 600);
+  let remaining = raw;
+  while (remaining.length > 600) {
+    let split = remaining.lastIndexOf('. ', 600);
+    if (split === -1) split = remaining.lastIndexOf(' ', 600);
     if (split === -1) split = 600;
     else split += 1;
-    paragraphs.push(clean.slice(0, split).trim());
-    clean = clean.slice(split).trim();
+    paragraphs.push(remaining.slice(0, split).trim());
+    remaining = remaining.slice(split).trim();
   }
-  if (clean) paragraphs.push(clean);
+  if (remaining) paragraphs.push(remaining);
 
   return paragraphs.join('\n\n');
 }
 
-// ── Episode Metadata Extraction (Phase E2) ────────────────────
-async function extractEpisodeMetadata(podId, pod, tmpDir) {
-  const metaFile = join(TRANSCRIPTS_DIR, `${podId}-${dubaiDate()}-meta.json`);
-  if (existsSync(metaFile)) return; // already extracted
+// ── Step 1: Episode Metadata via yt-dlp --dump-json ───────────
+// Returns videoId if successful, null otherwise.
+// Always writes meta.json when video info is available.
+async function fetchMetadata(podId, pod) {
+  const today = dubaiDate();
+  const metaFile = join(TRANSCRIPTS_DIR, `${podId}-${today}-meta.json`);
+
+  if (existsSync(metaFile)) {
+    try {
+      const existing = JSON.parse(readFileSync(metaFile, 'utf8'));
+      log(`${pod.name}: meta already exists (${existing.episode_title?.slice(0, 60)})`);
+      return existing._videoId || null;
+    } catch (e) { /* re-fetch if corrupt */ }
+  }
 
   try {
     const result = spawnSync('yt-dlp', [
       '--dump-json',
       '--no-download',
       '--playlist-items', '1',
+      '--no-warnings',
       `https://www.youtube.com/${pod.channel}/`,
-    ], { timeout: 60000, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+    ], { timeout: 45000, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
 
-    if (result.stdout) {
-      const data = JSON.parse(result.stdout);
-      const meta = {
-        episode_title: data.title || '',
-        published_date: data.upload_date
-          ? `${data.upload_date.slice(0,4)}-${data.upload_date.slice(4,6)}-${data.upload_date.slice(6,8)}`
-          : dubaiDate(),
-        description: (data.description || '').slice(0, 2000),
-        url: data.webpage_url || '',
-      };
-      writeFileSync(metaFile, JSON.stringify(meta, null, 2));
-      log(`${pod.name}: metadata saved (${meta.episode_title.slice(0, 60)}...)`);
+    if (result.error) {
+      log(`${pod.name}: yt-dlp spawn error — ${result.error.message}`);
+      return null;
     }
+
+    if (!result.stdout || !result.stdout.trim()) {
+      const stderr = (result.stderr || '').trim().split('\n')[0];
+      log(`${pod.name}: yt-dlp returned no output — ${stderr}`);
+      return null;
+    }
+
+    const data = JSON.parse(result.stdout.trim().split('\n')[0]);
+    const videoId = data.id;
+
+    const meta = {
+      episode_title: data.title || '',
+      published_date: data.upload_date
+        ? `${data.upload_date.slice(0,4)}-${data.upload_date.slice(4,6)}-${data.upload_date.slice(6,8)}`
+        : today,
+      description: (data.description || '').slice(0, 2000),
+      url: data.webpage_url || `https://www.youtube.com/watch?v=${videoId}`,
+      _videoId: videoId,
+    };
+
+    writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+    log(`${pod.name}: meta saved — "${meta.episode_title.slice(0, 70)}" (${videoId})`);
+    return videoId;
+
   } catch (err) {
-    log(`${pod.name}: metadata extraction failed — ${err.message}`);
+    log(`${pod.name}: metadata fetch failed — ${err.message}`);
+    return null;
   }
 }
 
-async function fetchTranscript(podId) {
+// ── Step 2: Transcript via youtube-transcript (native YouTube API) ──
+async function fetchTranscriptByVideoId(podId, pod, videoId) {
+  const today = dubaiDate();
+  const outputFile = join(TRANSCRIPTS_DIR, `${podId}-${today}.txt`);
+
+  if (existsSync(outputFile)) {
+    log(`${pod.name}: transcript already exists for ${today}`);
+    return true;
+  }
+
+  try {
+    log(`${pod.name}: fetching transcript for video ${videoId}...`);
+    const segments = await YoutubeTranscript.fetchTranscript(videoId, { lang: 'en' });
+
+    if (!segments || segments.length === 0) {
+      log(`${pod.name}: no transcript segments returned`);
+      return false;
+    }
+
+    const cleaned = cleanTranscriptSegments(segments);
+
+    if (cleaned.length < 200) {
+      log(`${pod.name}: transcript too short (${cleaned.length} chars) — likely empty`);
+      return false;
+    }
+
+    writeFileSync(outputFile, cleaned, 'utf8');
+    const wordCount = cleaned.split(/\s+/).length;
+    log(`${pod.name}: transcript saved — ${wordCount} words (${cleaned.length} chars)`);
+    return true;
+
+  } catch (err) {
+    log(`${pod.name}: youtube-transcript failed (${err.message}) — description fallback will be used`);
+    return false;
+  }
+}
+
+// ── Main per-podcast fetch ─────────────────────────────────────
+async function fetchPodcast(podId) {
   const pod = PODCAST_DIRECTORY[podId];
   if (!pod) {
     log(`SKIP: unknown podcast ID: ${podId}`);
     return false;
   }
 
-  const today = dubaiDate();
-  const outputFile = join(TRANSCRIPTS_DIR, `${podId}-${today}.txt`);
-
-  if (existsSync(outputFile)) {
-    log(`${pod.name}: transcript already exists for ${today}`);
-    // Still extract metadata if missing
-    await extractEpisodeMetadata(podId, pod, null);
-    return true;
+  const videoId = await fetchMetadata(podId, pod);
+  if (!videoId) {
+    log(`${pod.name}: could not get video ID — skipping transcript fetch`);
+    return false;
   }
 
-  log(`${pod.name}: fetching from YouTube ${pod.channel}...`);
-
-  // Use a temp directory in /tmp for cloud runner
-  const tmpDir = `/tmp/yt-${podId}-${Date.now()}`;
-  mkdirSync(tmpDir, { recursive: true });
-
-  try {
-    // Try auto-subtitles first, then manual captions
-    for (const subArg of ['--write-auto-subs', '--write-subs']) {
-      const result = spawnSync('yt-dlp', [
-        subArg,
-        '--sub-lang', 'en',
-        '--sub-format', 'vtt',
-        '--skip-download',
-        '--playlist-items', '1',
-        '--output', `${tmpDir}/%(title)s.%(ext)s`,
-        `https://www.youtube.com/${pod.channel}/`,
-      ], { timeout: 60000, encoding: 'utf8' });
-
-      if (result.stderr) log(`${pod.name} [${subArg}]: ${result.stderr.trim().split('\n')[0]}`);
-
-      // Find VTT file
-      let vttFile = null;
-      try {
-        const files = execSync(`find ${tmpDir} -name "*.vtt" 2>/dev/null`).toString().trim().split('\n');
-        vttFile = files.find(f => f.endsWith('.vtt'));
-      } catch (err) { log(`${pod.name}: VTT file search error: ${err.message}`); }
-
-      if (vttFile && existsSync(vttFile)) {
-        const vttContent = readFileSync(vttFile, 'utf8');
-        const cleanText = cleanVtt(vttContent);
-        if (cleanText.length > 200) {
-          writeFileSync(outputFile, cleanText);
-          const wordCount = cleanText.split(/\s+/).length;
-          log(`${pod.name}: transcript saved (${wordCount} words)`);
-          // Extract episode metadata alongside transcript (Phase E2)
-          await extractEpisodeMetadata(podId, pod, tmpDir);
-          return true;
-        }
-      }
-    }
-
-    log(`${pod.name}: no transcript available on YouTube — saving metadata for fallback`);
-    // Still extract metadata so generate.js can use the description as fallback
-    await extractEpisodeMetadata(podId, pod, tmpDir);
-    return false;
-  } catch (err) {
-    log(`${pod.name}: error — ${err.message}`);
-    return false;
-  } finally {
-    // Cleanup temp dir
-    try { execSync(`rm -rf ${tmpDir}`); } catch (err) { log(`Cleanup failed for ${tmpDir}: ${err.message}`); }
-  }
+  const hasTranscript = await fetchTranscriptByVideoId(podId, pod, videoId);
+  return hasTranscript;
 }
 
 // ── Load config ─────────────────────────────────────────────────
 function loadActivePodcasts() {
-  // 1. Try config.json (set by the PWA settings UI)
   const configPath = join(ROOT, 'config.json');
   if (existsSync(configPath)) {
     try {
@@ -201,7 +200,6 @@ function loadActivePodcasts() {
       }
     } catch (e) { log(`config.json parse error: ${e.message}`); }
   }
-  // 2. Fallback to env var
   const fromEnv = (process.env.ACTIVE_PODCASTS || '')
     .split(',').map(s => s.trim()).filter(Boolean);
   if (fromEnv.length) log(`Loaded ${fromEnv.length} podcasts from ACTIVE_PODCASTS env var`);
@@ -218,15 +216,21 @@ if (!activePodcasts.length) {
 
 log(`=== Transcript fetch started. Active: ${activePodcasts.join(', ')} ===`);
 
-// Fetch all transcripts in parallel (yt-dlp calls are independent, each has 60s timeout)
-const results = await Promise.allSettled(activePodcasts.map(podId => fetchTranscript(podId)));
-let success = 0, failed = 0;
+const results = await Promise.allSettled(activePodcasts.map(podId => fetchPodcast(podId)));
+let withTranscript = 0, withMeta = 0, failed = 0;
+
 results.forEach((r, i) => {
-  if (r.status === 'fulfilled' && r.value) success++;
+  const podId = activePodcasts[i];
+  const today = dubaiDate();
+  const metaExists = existsSync(join(TRANSCRIPTS_DIR, `${podId}-${today}-meta.json`));
+  const transcriptExists = existsSync(join(TRANSCRIPTS_DIR, `${podId}-${today}.txt`));
+
+  if (transcriptExists) withTranscript++;
+  else if (metaExists) withMeta++;
   else {
     failed++;
-    if (r.status === 'rejected') log(`${activePodcasts[i]}: ${r.reason?.message || 'unknown error'}`);
+    if (r.status === 'rejected') log(`${podId}: ${r.reason?.message || 'unknown error'}`);
   }
 });
 
-log(`=== Done. Success: ${success}, Failed: ${failed} ===`);
+log(`=== Done. With transcript: ${withTranscript}, Description fallback: ${withMeta}, Failed: ${failed} ===`);
