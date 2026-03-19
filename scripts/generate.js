@@ -817,34 +817,55 @@ async function processPodcast(podId, podInfo) {
   ];
 
   const transcriptFile = candidateFiles.find(f => existsSync(f));
-  if (!transcriptFile) { log(`${podInfo.name}: no transcript found`); return null; }
 
-  // Determine which date's files to use
-  const fileDate = transcriptFile.includes(today) ? today : yesterdayStr;
-
-  log(`${podInfo.name}: processing transcript (Phase E intelligence)...`);
-  const transcript = readFileSync(transcriptFile, 'utf8').slice(0, 20000);
+  // Determine which date's files to use (prefer today, then yesterday)
+  const fileDate = transcriptFile
+    ? (transcriptFile.includes(today) ? today : yesterdayStr)
+    : today;
 
   // Load metadata if available
   const metaPath = join(TRANSCRIPTS_DIR, `${podId}-${fileDate}-meta.json`);
+  const metaPathYesterday = join(TRANSCRIPTS_DIR, `${podId}-${yesterdayStr}-meta.json`);
   const meta = existsSync(metaPath)
     ? JSON.parse(readFileSync(metaPath, 'utf8'))
-    : { episode_title: '', published_date: fileDate, description: '', url: '' };
+    : existsSync(metaPathYesterday)
+      ? JSON.parse(readFileSync(metaPathYesterday, 'utf8'))
+      : { episode_title: '', published_date: fileDate, description: '', url: '' };
+
+  let transcript;
+  let analysisMode;
+  if (transcriptFile) {
+    transcript = readFileSync(transcriptFile, 'utf8').slice(0, 20000);
+    analysisMode = 'full';
+    log(`${podInfo.name}: processing transcript (Phase E intelligence)...`);
+  } else if (meta.description && meta.description.length > 50) {
+    // Fallback: use episode description for a lighter analysis
+    transcript = `[NO TRANSCRIPT AVAILABLE — DESCRIPTION ONLY]\n\n${meta.description}`;
+    analysisMode = 'description-only';
+    log(`${podInfo.name}: no transcript found — using episode description as fallback (${meta.description.length} chars)`);
+  } else {
+    log(`${podInfo.name}: no transcript and no usable description — skipping`);
+    return null;
+  }
 
   // Identify guest from description + transcript opening
   const guestHint = extractGuestHint(meta.description, transcript.slice(0, 3000));
   log(`${podInfo.name}: guest hint = ${guestHint || 'none (host-only)'}`);
 
-  // Web search for guest profile if guest detected
+  // Web search for guest profile if guest detected (skip for description-only to save API calls)
   let guestWebProfile = '';
-  if (guestHint) {
+  if (guestHint && analysisMode === 'full') {
     log(`${podInfo.name}: searching web for guest profile: ${guestHint}...`);
     guestWebProfile = await searchGuestProfile(guestHint);
     if (guestWebProfile) log(`${podInfo.name}: guest profile obtained (${guestWebProfile.length} chars)`);
   }
 
-  // Full podcast intelligence analysis
-  return await claudePodcastAnalysis(podInfo.name, podId, transcript, meta, guestWebProfile, podInfo.domain);
+  // Podcast intelligence analysis
+  const result = await claudePodcastAnalysis(podInfo.name, podId, transcript, meta, guestWebProfile, podInfo.domain);
+  if (result && analysisMode === 'description-only') {
+    result._analysis_mode = 'description-only';
+  }
+  return result;
 }
 
 async function fetchGrowth() {
