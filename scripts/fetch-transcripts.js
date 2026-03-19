@@ -143,8 +143,6 @@ async function fetchTranscript(podId) {
     // Try auto-subtitles first, then manual captions
     for (const subArg of ['--write-auto-subs', '--write-subs']) {
       const result = spawnSync('yt-dlp', [
-        '--quiet',
-        '--no-warnings',
         subArg,
         '--sub-lang', 'en',
         '--sub-format', 'vtt',
@@ -153,6 +151,8 @@ async function fetchTranscript(podId) {
         '--output', `${tmpDir}/%(title)s.%(ext)s`,
         `https://www.youtube.com/${pod.channel}/`,
       ], { timeout: 60000, encoding: 'utf8' });
+
+      if (result.stderr) log(`${pod.name} [${subArg}]: ${result.stderr.trim().split('\n')[0]}`);
 
       // Find VTT file
       let vttFile = null;
@@ -175,7 +175,9 @@ async function fetchTranscript(podId) {
       }
     }
 
-    log(`${pod.name}: no transcript available on YouTube`);
+    log(`${pod.name}: no transcript available on YouTube — saving metadata for fallback`);
+    // Still extract metadata so generate.js can use the description as fallback
+    await extractEpisodeMetadata(podId, pod, tmpDir);
     return false;
   } catch (err) {
     log(`${pod.name}: error — ${err.message}`);
@@ -216,10 +218,15 @@ if (!activePodcasts.length) {
 
 log(`=== Transcript fetch started. Active: ${activePodcasts.join(', ')} ===`);
 
+// Fetch all transcripts in parallel (yt-dlp calls are independent, each has 60s timeout)
+const results = await Promise.allSettled(activePodcasts.map(podId => fetchTranscript(podId)));
 let success = 0, failed = 0;
-for (const podId of activePodcasts) {
-  const ok = await fetchTranscript(podId);
-  if (ok) success++; else failed++;
-}
+results.forEach((r, i) => {
+  if (r.status === 'fulfilled' && r.value) success++;
+  else {
+    failed++;
+    if (r.status === 'rejected') log(`${activePodcasts[i]}: ${r.reason?.message || 'unknown error'}`);
+  }
+});
 
 log(`=== Done. Success: ${success}, Failed: ${failed} ===`);
