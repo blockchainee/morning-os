@@ -8,5 +8,8 @@
     "fetch-transcripts": "node scripts/fetch-transcripts.js",
     "generate": "node scripts/generate.js",
     "get-google-token": "node scripts/get-google-token.js"
+  },
+  "dependencies": {
+    "youtube-transcript": "^1.2.1"
   }
 }
